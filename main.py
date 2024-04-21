@@ -62,24 +62,6 @@ systemVariables = {
     'storageMaxSize': 15
 }
 
-def update_system_variables(updatedVariables):
-    global systemVariables, pollCycles, pollInterval, stage1Duration, stage2Duration, stage3Duration, stage4Duration, stage5Duration, stage6Duration, cycleDuration, storageMaxSize
-    systemVariables = updatedVariables
-    # Update all modifiable variables
-    pollCycles = systemVariables['pollCycles']
-    pollInterval = systemVariables['pollInterval']
-    stage1Duration = systemVariables['stage1Duration']
-    stage2Duration = systemVariables['stage2Duration']
-    stage3Duration = systemVariables['stage3Duration']
-    stage4Duration = systemVariables['stage4Duration']
-    stage5Duration = systemVariables['stage5Duration']
-    stage6Duration = systemVariables['stage6Duration']
-    cycleDuration = systemVariables['cycleDuration']
-    storageMaxSize = systemVariables['storageMaxSize']
-
-    # for testing
-    print(systemVariables)
-
 dataStorage = []
 currentData = {}
 
@@ -111,10 +93,10 @@ def display_graph(ultrasonic):
             distanceData.append(i[0])
             timeData.append((i[1]-firstTime))
 
-    if len(timeData) < 20:
-        print("\nInsufficient data. Please wait 20 seconds in the polling loop before trying again.\n")
-        time.sleep(2)
-        return
+   # if len(timeData) < 20:
+   #    print("\nInsufficient data. Please wait 20 seconds in the polling loop before trying again.\n")
+   #    time.sleep(2)
+   #    return
     
     plt.title("Distance from oncoming traffic vs Time")
     plt.plot(timeData,distanceData, marker="o")
@@ -545,14 +527,9 @@ def main():
             #   currentData['data'] = input_data(12,0.05)  THIS IS THE ACTUAL HARDWARE INTEGRATED FUNCTION
             currentData['data'] = input_data(pollCycles,pollInterval)
             dataStorage.append(currentData)
-            #print(currentData)
             if len(dataStorage[0]) > storageMaxSize:
                 dataStorage.remove(dataStorage[0])
-            #print(dataStorage[0]['data']['ultrasonic'])
-
-            # check if the mode switch button is pressed
-            # if so, call 'maintenence' function and pause loop 
-                
+                                      
             if stageChangeCycles <= 0: # Check in case the duration is edited such that the value is now negative
                 set_stage(currentStage)
 
