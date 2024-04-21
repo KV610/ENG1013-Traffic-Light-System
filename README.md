@@ -8,3 +8,6 @@ Add the version name in the commit header, and a reasonable description of what 
 > If the code is unstable/WIP please make sure you are on the `review` branch and commit there instead. If not, commit the change to the `main` branch.
 
 You can view version history of a file by clicking on the file, and then clicking **History** underneath the three dots on the top right of the page.
+
+> [!IMPORTANT]  
+> Please don't rename main.py to anything else when uploading, as version history requires the same file name.
