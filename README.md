@@ -1,6 +1,6 @@
 # ENG1013-Traffic-Light-System
 ## Usage
-click **Add file** then **Upload files** and upload your edited code.
+Click **Add file** then **Upload files** and upload your edited code.
 
 Add the version name in the commit header, and a reasonable description of what changes have been made in the file in the commit description. This will prevent confusion for others who are working on the code. 
 
