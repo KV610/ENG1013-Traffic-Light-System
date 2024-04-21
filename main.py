@@ -359,7 +359,6 @@ def input_data(cycles,intervalLength):
         }
         return output
     except KeyboardInterrupt:
-        board.digital_write(triggerPin, 0)
         services()
         return
 
