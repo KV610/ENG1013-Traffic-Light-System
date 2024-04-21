@@ -1,13 +1,19 @@
 # File name: main.py 
-# Purpose: Contains the polling loop and all subsytems
-# Creator: 'James Armit'
-# Version: '3.0' - Hardware integrated
+# Purpose: Contains the traffic light system logic 
+# Version '0.0' - Edited By: 'James Armit' (09/04/24) - file created with polling loop and control subsystem
+# Version '1.0' - Edited By: 'Karthik Vaideeswaran' (09/04/24) - created function led_status for m2p1
+# Version '2.0' - Edited By: 'Binuda Kalugalage' (10/04/2024) - added maintenance_mode, fixed display_graph, added dummy button (ped) + ultrasonic data for m2p1
+# Version '3.0' - Edited By: 'James Armit' (21/04/24) - hardware integration
+# Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance_mode and services function logic; improved system parameter handling and console readability
 
 #--- IMPORT MODULES ----
 import time
 from pymata4 import pymata4
 import random
 import matplotlib.pyplot as plt
+
+from change_display import display_message
+
 board = pymata4.Pymata4()
 
 #   ----------------------- INITIALISE GLOBAL VARIABLES AND VARIABLE DICTIONARY------------------------------
@@ -24,19 +30,26 @@ stage4Duration = 10
 stage5Duration = 1
 stage6Duration = 1
 cycleDuration = 3.00
-mainRoadLights = "g"
-sideRoadLights = "r"
-pedestrianLights = "r"
-presetPIN = 2005
-failCount = 0
-maxAttempts = 4
+mainRoadLights = "Green"
+sideRoadLights = "Red"
+pedestrianLights = "Red"
 storageMaxSize = 6
 timestamp = 171156
+
+# maintenance mode variables
+failCount = 0
+systemVariables = {"presetPIN": 2005,
+          "maxPinAttempts.": 3, 
+          "lockedTime": 5}
+
 
 # -- VARIABLE DICTIONARY CONTATINING DEFAULT VALUES -- 
 # This dictionary is the one which can be updated in the services subsection
 # Only editable variables should be in this dictionary 
 systemVariables = {
+    'presetPIN': 2005,
+    'maxPinAttempts': 3, 
+    'lockedTime': 5,
     'pollCycles' : 12,
     'pollInterval' : 0.05,
     'stage1Duration': 10,
@@ -75,6 +88,7 @@ pedestrian_data = []
 ultrasonicData = []
 ultrasonicPlaceholder = []
 speedData = []
+
 def seven_seg_display_placeholder(message):
     print("\n--- 7 SEG DISPLAY OUTPUT ---")
     if type(message) == str:
@@ -85,6 +99,9 @@ def seven_seg_display_placeholder(message):
         print("Message must be a string")
 
 def display_graph(ultrasonic):
+
+    print(len(ultrasonic[0][0]))
+
     distanceData = []
     timeData = []
 
@@ -95,137 +112,175 @@ def display_graph(ultrasonic):
         for i in ultrasonic[j]:
             distanceData.append(i[0])
             timeData.append((i[1]-firstTime))
+
+    print(timeData)
+
+    if len(timeData) < 20:
+        print("\nInsufficient data. Please wait 20 seconds in the polling loop before trying again.\n")
+        time.sleep(2)
+        return
     
     plt.title("Distance from oncoming traffic vs Time")
     plt.plot(timeData,distanceData, marker="o")
     plt.xlabel("Time (seconds)")
     plt.ylabel("Distance (cm)")
 
-
     plt.show() 
 
-    plt.savefig("Ultrasonic_Data.png")
+    return plt
 
 def services():
     """
     Function name: services
 
-    Description: Contains the services subsystem for the MVP and allows the user to change any value in the system 
+    Description: Contains the services subsystem for the MVP. 
+                 Displays the mode system menu displaying the different operations of the program.
+                 Calls the according function depending on user input.
 
     Parameters: None
 
-    Returns: updatedParams (dict) a dictionary of any modified values
+    Returns: None
     """
+
     global dataStorage 
     while True:
         ledLights = {
-                'Main Road Light': "y",
-                'Side Road Light': "y",
-                'Pedestrian Light': "y"
+                'Main Road Light': "Yellow",
+                'Side Road Light': "Yellow",
+                'Pedestrian Light': "Yellow"
             }
         update_LED_placeholder(ledLights)
+
         seven_seg_display_placeholder("srvc")
-        print("[1] Normal \n[2] Maintenance \n[3] Data Observation \n[4] Quit Program")
+
+        print("\n---------------------------")
+        print("SYSTEM MENU                ")
+        print("---------------------------")   
+        print("[1] Normal \n[2] Maintenance \n[3] Data Observation \n*Type 'end' to end program")
+        print("---------------------------\n")
 
         try:
-            mode = int(input("Please select the mode you would like to enter: "))
-        except ValueError:
-            print("Invalid input")
+            mode = input("Please select the mode you would like to enter: ")
+
+
+            if mode == 'end':
+                print("Shutting down...")
+                board.shutdown()
+                exit(0)
+            else:
+                try:
+                    mode = int(mode)
+                except ValueError:
+                    print("\nPlease select one of the shown modes.\n")
+                    time.sleep(1)
+                    continue
+                except KeyboardInterrupt:
+                    continue
+                if mode == 1:
+                    print("\nEntering normal mode...\n")
+                    main()
+                elif mode == 2:
+                    print("\nEntering maintenance mode...")
+                    maintenance()
+                elif mode == 3:
+                    print("\nEntering data observation mode...\n")
+                    inputData = []
+                    for i in range(len(dataStorage[0])):
+                        inputData.append(dataStorage[i]['data']['ultrasonic'])
+                    display_graph(inputData).savefig("Ultrasonic_Data.png")
+                    print("Graph displayed")
+                else:
+                    print("\nPlease select one of the shown modes.\n")
+                    time.sleep(1)
+                    continue
+        except KeyboardInterrupt:
             continue
 
-        if mode == 1:
-            print("Entering normal mode...")
-            main()
-        elif mode == 2:
-            print("Entering maintenance mode...")
-            maintenence()
-        elif mode == 3:
-            print("Entering data observation mode...")
-            inputData = []
-            for i in range(len(dataStorage[0])):
-                #print(dataStorage[i]['data']['ultrasonic'])
-                inputData.append(dataStorage[i]['data']['ultrasonic'])
-            display_graph(inputData)
-            print("Graph displayed")
-        elif mode == 4:
-            print("Quitting Program...")
-            exit()
 
-def maintenence():
+def maintenance():
     """
-    Function name: services
-
-    Description: Contains the services subsystem for the MVP and allows the user to change any value in the system 
-
+    Function name: maintenance_mode
+    
+    Description: This function contains the logic for the maintenance mode.
+                 System parameters can be modified through this function.
+    
     Parameters: None
 
-    Returns: updatedParams (dict) a dictionary of any modified values
+    Returns: None
     """
-    global presetPIN,failCount,maxAttempts,systemVariables,currentData
-    paramOptions = [1, 2, 3, 4, 5, 6, 7, 8 ,9 ,10]                # TODO: Validate inputs
-    paramVars = []
-    paramValues = []
+
     seven_seg_display_placeholder("adjt")
-    for keys in systemVariables:
-        paramVars.append(keys)
-        paramValues.append(systemVariables[keys])
-    try:
-        while True:
-            try:
-                PINAttempt = int(input("Please enter the PIN: "))
-                if PINAttempt == presetPIN:
-                    while True: 
-                        choice = input("Would you like to [1] modify a parameter, [2] view a graph, or [3] exit? ")
 
-                        if choice == '1':
+    global failCount, systemVariables, currentData
 
-                            for i in range(len(paramVars)):
-                                print(f"[{i+1}] {paramVars[i]}: {paramValues[i]}\n")
+    stage_6() # call stage 6
 
-                            chosenParam = int(input("Please enter the parameter you would like to modify [num]: "))
-                            while chosenParam not in paramOptions:
-                                chosenParam = int(input("Please enter the parameter you would like to modify [num]: "))
+    while True:
+        try:
+            PINAttempt = input("\nPlease enter the PIN to enter maintenance mode.\n*Type 'back' to return to the system menu.\nPIN: ")
 
-                            chosenValue = int(input(f"Please enter the value you would like to set '{paramVars[chosenParam - 1]}' to: "))
-                            paramValues[chosenParam - 1] = chosenValue
+            if PINAttempt == 'back':
+                services() # return to system menu
+                return
+            else:
+                try:
+                    PINAttempt = int(PINAttempt)
+                except ValueError:
+                    print("\nPlease enter a PIN attempt.")
+                    time.sleep(1)
+                    continue
 
-                            print(f"Updated [{chosenParam}] {paramVars[chosenParam - 1]} to {chosenValue}\n")
+                if PINAttempt == systemVariables['presetPIN']:
+                    failCount = 0 # forget any previous failed attempts
 
-                            updatedVariables = {}
-                            for i in range(len(paramVars)):
-                                updatedVariables[paramVars[i]] = paramValues[i]
+                    while True:
+                        print("\n---------------------------")
+                        print("SYSTEM PARAMETERS          ")
+                        print("---------------------------")
+                        for variable in enumerate(systemVariables):
+                            print(f"[{variable[0]+1}] {variable[1]}: {systemVariables[variable[1]]}")
+                        print("---------------------------\n")
 
-                            update_system_variables(updatedVariables)
+                        chosenParam = input("Please select the parameter you would like to modify.\n*Type 'back' to return to the system menu.\n")
 
-                        elif choice == '2':
-                            inputData = []
-                            for i in dataStorage:
-                                inputData.append(i['data']['ultrasonic'])
-                            display_graph(inputData)
-                            print("Graph displayed")
-                            # display_message(segBoard, "data", 5, True)
+                        if chosenParam == 'back':
+                            services()
+                            return
+                        else:
+                            try:
+                                chosenParam = int(chosenParam)
+                            except ValueError:
+                                print("\nPlease select one of the shown parameters.\n")
+                                time.sleep(1)
+                                continue
 
-                        elif choice == '3':
-                            print("Exiting maintenence...")
-                            break  # break out of this while loop
-                    break
+                            if chosenParam in range(1, len(systemVariables) + 1):
+                                chosenKey = list(systemVariables.keys())[chosenParam - 1]
+                                chosenValue = int(input(f"Please enter the value you would like to set '{chosenKey}' to: "))
+                                systemVariables[chosenKey] = chosenValue
+
+                                print(f"\nUpdated parameter [{chosenParam}] {chosenKey} to {chosenValue}")
+                                time.sleep(1)
+                            else:
+                                print("\nPlease select one of the shown parameters.\n")
+                                time.sleep(1)
+                                continue
+
                 else:
                     failCount += 1
-
-                if failCount >= maxAttempts:
-                    seven_seg_display_placeholder("LOCK")
-                    print("LOCKED")
-                    time.sleep(5) # wait 5 (or however many, feel free to edit) seconds after displaying 'locked' message
-                    failCount = 0
-                    break
-            except ValueError:
-                print("Please enter a valid 4 digit pin")
-            except EOFError:
-                print("Exiting...")
-                exit()
-    except EOFError:
-        print("Exiting Program...")
-        exit()
+                    if failCount >= systemVariables['maxPinAttempts']:
+                        print(f"\nToo many incorrect attempts. Try again in {systemVariables['lockedTime']} seconds.")
+                        seven_seg_display_placeholder("Locd")
+                        # display_message(board, 'Locd', systemVariables['lockedTime'], False)
+                        time.sleep(systemVariables['lockedTime'])
+                        failCount = 0
+                    else:
+                        print("\nIncorrect PIN. Please try again.")
+                        time.sleep(1)
+                    continue
+        except KeyboardInterrupt:
+            print()
+            continue
 
 # ACTUAL HARDWARE INTEGRATED FUNCTION
 def input_data(cycles,intervalLength):
@@ -304,7 +359,9 @@ def input_data(cycles,intervalLength):
         }
         return output
     except KeyboardInterrupt:
-        print("Exiting program...")
+        board.digital_write(triggerPin, 0)
+        services()
+        return
 
 
 # TEST INPUTS / PLACEHOLDER FUNCTION
@@ -350,9 +407,9 @@ def stage_1():
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 1
 
-    mainRoadLights = "g"
-    sideRoadLights = "r"
-    pedestrianLights = "r"
+    mainRoadLights = "Green"
+    sideRoadLights = "Red"
+    pedestrianLights = "Red"
 
     pedestrians = 0
 
@@ -364,13 +421,11 @@ def stage_2():
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 2
 
-    mainRoadLights = "y"
-    sideRoadLights = "r"
-    pedestrianLights = "r"
+    mainRoadLights = "Yellow"
+    sideRoadLights = "Red"
+    pedestrianLights = "Red"
 
     stageChangeCycles = stage2Duration
-
-
 
     seven_seg_display_placeholder("stg2")
 
@@ -378,9 +433,9 @@ def stage_3():
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 3
 
-    mainRoadLights = "r"
-    sideRoadLights = "r"
-    pedestrianLights = "r"
+    mainRoadLights = "Red"
+    sideRoadLights = "Red"
+    pedestrianLights = "Red"
 
     print(f"Pedestrians: {pedestrians}")
 
@@ -392,9 +447,9 @@ def stage_4():
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 4
 
-    mainRoadLights = "r"
-    sideRoadLights = "g"
-    pedestrianLights = "g"
+    mainRoadLights = "Red"
+    sideRoadLights = "Green"
+    pedestrianLights = "Green"
 
     stageChangeCycles = stage4Duration
 
@@ -404,8 +459,8 @@ def stage_5():
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 5
 
-    mainRoadLights = "r"
-    sideRoadLights = "y"
+    mainRoadLights = "Red"
+    sideRoadLights = "Yellow"
     pedestrianLights = "gf"
 
     stageChangeCycles = stage5Duration
@@ -416,9 +471,9 @@ def stage_6():
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 6
 
-    mainRoadLights = "r"
-    sideRoadLights = "r"
-    pedestrianLights = "r"
+    mainRoadLights = "Red"
+    sideRoadLights = "Red"
+    pedestrianLights = "Red"
 
     stageChangeCycles = stage6Duration
 
@@ -451,14 +506,14 @@ def update_LED_placeholder(ledDict):
     print("---- LED LIGHT OUTPUT --- ")
     ledMapping = {
         'main': {
-            "g": 13,
-            "y": 12,
-            "r": 11
+            "Green": 13,
+            "Yellow": 12,
+            "Red": 11
         },
         'side': {
-            "g": 10,
-            "y": 9,
-            "r": 8
+            "Green": 10,
+            "Yellow": 9,
+            "Red": 8
         }
     }
     for keys in ledDict:
@@ -483,7 +538,7 @@ def main():
     Parameters: None 
     Returns: None 
     """
-    # Keep the loop running infinatly 
+    # Keep the loop running infinitely 
     # If a Keyboard inturrupt is used, exit the program. Otherwise, keep running
     try:
         while True:
@@ -530,6 +585,7 @@ def main():
             stageChangeCycles -= 1 
     except KeyboardInterrupt:
         services()
+        return
     
 if __name__ == "__main__":
     services()
