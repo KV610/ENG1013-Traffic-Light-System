@@ -4,7 +4,7 @@
 # Version '1.0' - Edited By: 'Karthik Vaideeswaran' (09/04/24) - created function led_status for m2p1
 # Version '2.0' - Edited By: 'Binuda Kalugalage' (10/04/2024) - added maintenance_mode, fixed display_graph, added dummy button (ped) + ultrasonic data for m2p1
 # Version '3.0' - Edited By: 'James Armit' (21/04/24) - hardware integration
-# Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance_mode and services function logic; improved system parameter handling and console readability
+# Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
 
 #--- IMPORT MODULES ----
 import time
@@ -100,8 +100,6 @@ def seven_seg_display_placeholder(message):
 
 def display_graph(ultrasonic):
 
-    print(len(ultrasonic[0][0]))
-
     distanceData = []
     timeData = []
 
@@ -112,8 +110,6 @@ def display_graph(ultrasonic):
         for i in ultrasonic[j]:
             distanceData.append(i[0])
             timeData.append((i[1]-firstTime))
-
-    print(timeData)
 
     if len(timeData) < 20:
         print("\nInsufficient data. Please wait 20 seconds in the polling loop before trying again.\n")
