@@ -1,7 +1,8 @@
 # File name: main.py 
 # Purpose: Contains the polling loop and control subsystem 
 # Creator: 'James Armit'
-# Version: '1.0'
+# Edited By: 'Karthik Vaideeswaran' (09/04/24)
+# Version: '1.1'
 
 #--- IMPORT MODULES ----
 import time
@@ -28,7 +29,8 @@ presetPIN = 2005
 failCount = 0
 maxAttempts = 4
 
-
+stageList = [1, 2, 3, 4, 5, 6] #To have an easier way of indexing through stages
+ledDict = {1: ['g','r','r'], 2: ['y','r','r'], 3: ['r','r','r'], 4: ['r','g','g'], 5: ['r','y','gf'], 6: ['r','r','r']} #Dictionary containing lists of the statuses of LEDs according to stage
 dataStorage = []
 storageMaxSize = 15
 currentData = {}
@@ -173,6 +175,49 @@ def input_data(cycles,intervalLength):
     except KeyboardInterrupt:
         print("Exiting program...")
 
+def led_status(): #TODO: Check over function and ensure it works
+    """
+    Function name: led_status
+    
+    Description: Checks which main road, side road and pedestrian LEDs are currently on/off, and changes their status based on the current stage of operation
+
+    Returns: ledStatus (list): the list of current LEDs that are on 
+    """
+    global currentStage, mainRoadLights, sideRoadLights, pedestrianLights, stageChangeCycles
+    while True:
+        if stageChangeCycles == 0:
+            i = 0
+            while i in range(len(stageList)):
+                nextStage = currentStage + 1
+                if currentStage == 6:
+                    nextStage = 1
+                    mainRoadLights = ledDict[nextStage][0]
+                    sideRoadLights = ledDict[nextStage][1]
+                    pedestrianLights= ledDict[nextStage][2]
+                elif nextStage == stageList[i]:
+                    if nextStage == 2:
+                        mainRoadLights = ledDict[nextStage][0]
+                        sideRoadLights = ledDict[nextStage][1]
+                        pedestrianLights= ledDict[nextStage][2]
+                    elif nextStage == 3:
+                        mainRoadLights = ledDict[nextStage][0]
+                        sideRoadLights = ledDict[nextStage][1]
+                        pedestrianLights= ledDict[nextStage][2]
+                    elif nextStage == 4:
+                        mainRoadLights = ledDict[nextStage][0]
+                        sideRoadLights = ledDict[nextStage][1]
+                        pedestrianLights= ledDict[nextStage][2]
+                    elif nextStage == 5:
+                        mainRoadLights = ledDict[nextStage][0]
+                        sideRoadLights = ledDict[nextStage][1]
+                        pedestrianLights= ledDict[nextStage][2]
+                    elif nextStage == 6:
+                        mainRoadLights = ledDict[nextStage][0]
+                        sideRoadLights = ledDict[nextStage][1]
+                        pedestrianLights= ledDict[nextStage][2]
+            break
+        else:
+            continue
 def stage_1():
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 1
