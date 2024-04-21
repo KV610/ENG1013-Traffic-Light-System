@@ -10,4 +10,4 @@ Add the version name in the commit header, and a reasonable description of what 
 You can view version history of a file by clicking on the file, and then clicking **History** underneath the three dots on the top right of the page.
 
 > [!IMPORTANT]  
-> Please don't rename main.py to anything else when uploading, as version history requires the same file name.
+> Please make sure the file you're uploading shares the same name as the one you wish to update, as version history requires the same file name.
