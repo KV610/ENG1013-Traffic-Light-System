@@ -1,11 +1,12 @@
 # File name: main.py 
 # Purpose: Contains the traffic light system logic 
-# Version '0.0' - Edited By: 'James Armit' (09/04/24) - file created with polling loop and control subsystem
-# Version '1.0' - Edited By: 'Karthik Vaideeswaran' (09/04/24) - created function led_status for m2p1
+# Version '0.0' - Edited By: 'James Armit' (09/04/2024) - file created with polling loop and control subsystem
+# Version '1.0' - Edited By: 'Karthik Vaideeswaran' (09/04/2024) - created function led_status for m2p1
 # Version '2.0' - Edited By: 'Binuda Kalugalage' (10/04/2024) - added maintenance_mode, fixed display_graph, added dummy button (ped) + ultrasonic data for m2p1
-# Version '3.0' - Edited By: 'James Armit' (21/04/24) - hardware integration
+# Version '3.0' - Edited By: 'James Armit' (21/04/2024) - hardware integration
 # Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
 # Version '4.1' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
+# Version '4.2' - Edited By: 'Karthik Vaideeswaran' (24/04/2024) - Added function headers for those functions without headers
 
 #--- IMPORT MODULES ----
 import time
@@ -73,6 +74,14 @@ ultrasonicPlaceholder = []
 speedData = []
 
 def seven_seg_display_placeholder(message):
+    """
+    Function: seven_seg_display_placeholder
+    Description: Outputs a message to console that matches message on 7-seg display
+    Parameters:
+        message (string): The desired text to be output to the 7-seg display
+    Returns:
+        None
+    """
     print("\n--- 7 SEG DISPLAY OUTPUT ---")
     if type(message) == str:
         if len(message) != 4:
@@ -82,6 +91,14 @@ def seven_seg_display_placeholder(message):
         print("Message must be a string")
 
 def display_graph(ultrasonic):
+    """
+    Function: display_graph
+    Description: Plots a graph of the last 20 seconds of distance data collected by ultrasonic sensor
+    Parameters:
+        ultrasonic (list): Contains last 20 seconds of distance data from ultrasonic sensor
+    Returns:
+    None
+    """
     global dataStorage
     distanceData = []
     timeData = []
@@ -386,6 +403,14 @@ def input_data(cycles,intervalLength):
    # return output
     
 def stage_1():
+    """
+    Function: stage_1
+    Description: Sets LED status as required for stage 1 and runs the stage for the required amount of time (30s or 10 cycles)
+    Parameters:
+        None
+    Returns:
+        None
+    """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 1
 
@@ -400,6 +425,14 @@ def stage_1():
     seven_seg_display_placeholder("stg1")
 
 def stage_2():
+    """
+    Function: stage_2
+    Description: Sets LED status as required for stage 2 and runs the stage for the required amount of time (3s or 1 cycle)
+    Parameters:
+        None
+    Returns:
+        None
+    """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 2
 
@@ -412,6 +445,14 @@ def stage_2():
     seven_seg_display_placeholder("stg2")
 
 def stage_3():
+    """
+    Function: stage_3
+    Description: Sets LED status as required for stage 3 and runs the stage for the required amount of time (3s or 1 cycles)
+    Parameters:
+        None
+    Returns:
+        None
+    """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 3
 
@@ -426,6 +467,14 @@ def stage_3():
     seven_seg_display_placeholder("stg3")
 
 def stage_4():
+    """
+    Function: stage_4
+    Description: Sets LED status as required for stage 4 and runs the stage for the required amount of time (30s or 10 cycles)
+    Parameters:
+        None
+    Returns:
+        None
+    """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 4
 
@@ -438,6 +487,14 @@ def stage_4():
     seven_seg_display_placeholder("stg4")
 
 def stage_5():
+    """
+    Function: stage_5
+    Description: Sets LED status as required for stage 5 and runs the stage for the required amount of time (3s or 1 cycle)
+    Parameters:
+        None
+    Returns:
+        None
+    """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 5
 
@@ -450,6 +507,14 @@ def stage_5():
     seven_seg_display_placeholder("stg5")
 
 def stage_6():
+    """
+    Function: stage_6
+    Description: Sets LED status as required for stage 6 and runs the stage for the required amount of time (3s or 1 cycle)
+    Parameters:
+        None
+    Returns:
+        None
+    """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 6
 
@@ -485,6 +550,14 @@ def set_stage(current):
         stage_1()
 
 def update_LED_placeholder(ledDict):
+    """
+    Function: update_LED_place_holder
+    Description: Changes LED status of main road, side road and pedestrian lights based on current stage
+    Parameters:
+        ledDict (dictionary): Contains dictionary of which LEDs should be on/off for each set of lights for the current stage
+    Returns:
+        None
+    """
     global currentStage
     print("---- LED LIGHT OUTPUT --- ")
     ledMapping = {
