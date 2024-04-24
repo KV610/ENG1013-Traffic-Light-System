@@ -35,13 +35,7 @@ sideRoadLights = "Red"
 pedestrianLights = "Red"
 storageMaxSize = 6
 timestamp = 171156
-
-# maintenance mode variables
 failCount = 0
-systemVariables = {"presetPIN": 2005,
-          "maxPinAttempts.": 3, 
-          "lockedTime": 5}
-
 
 # -- VARIABLE DICTIONARY CONTATINING DEFAULT VALUES -- 
 # This dictionary is the one which can be updated in the services subsection
