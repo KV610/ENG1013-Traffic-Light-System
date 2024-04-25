@@ -84,10 +84,10 @@ lookupDict = {
 
 def format_message(charString):
     """
-    Function name: cycle_digits
+    Function name: format_message
 
     Description: 
-                Validates the message to be displayed to be a 4-letter alphanumeric string, and additionally formats decimal points if present
+                Validates the message to be displayed to be a 4-letter alphanumeric string, and additionally formats decimal points if present.
 
     Parameters: 
                 charString (string): the 4-digit message as a string which will be displayed
@@ -108,24 +108,24 @@ def format_message(charString):
     while charIndex < len(charList):
         if charList[charIndex] == ".": # if the current character is a decimal point
             if charIndex != 0: # if it is not the first character
-                if "." not in charList[charIndex-1]:  # if it is also not preceded by a decimal
+                if "." not in charList[charIndex - 1]:  # if it is also not preceded by a decimal point
                     charList[charIndex-1] += "." # add "." to the previous character
                     charList.pop(charIndex) # remove the current lone "." from the list of characters
                 else:
-                    charList[charIndex] = " ."
+                    charList[charIndex] = " ." # if it is preceded by a decimal point, make that decimal point be alone in its own digit
                     charIndex += 1
-            else: # if it is the first character
-                charList[charIndex] = " ."
+            else: 
+                charList[charIndex] = " ." # if it is the first character, make that decimal point be alone in its own digit
                 charIndex += 1
         else:
-            charIndex += 1 # go to the next character, nothing happens to current character
+            charIndex += 1 # go to the next character, with nothing happening to the current character
     
     # truncate or extend the message to length 4
     while len(charList) != 4:
         if len(charList) < 4:
-            charList.append(" ")
+            charList.append(" ") # extend message to length 4
         else:
-            charList = charList[:4]
+            charList = charList[:4] # truncate message to length 4
     
     return charList
 
@@ -138,21 +138,24 @@ def enable_segments(board, currentChar):
 
     Parameters: 
                 board (object): the Arduino board initialised using pymata
-                currentChar (string): a character of the message, which is being cycled through in cycle_digits
+                currentChar (string): a character of the message
 
     Returns: None
     """
     
-    # in the case of "." in a digit, adjust the segment ON/OFF value from the dictionary to include it
-    if "." in currentChar:
-        segValues = lookupDict[str(currentChar[:-1])]
-        segValues = segValues[:-1] + "1"
+    # in the case of "." in a digit
+    if "." not in currentChar:
+        segStates = lookupDict[str(currentChar)] # only set segStates to the value of the key currentChar (with DP segment off by default)
     else:
-        segValues = lookupDict[str(currentChar)]
+        # find the dictionary value for key currentChar which describes the on/off states for the segments of the digits
+        segStates = lookupDict[str(currentChar[:-1])] 
+        
+        # change the last character of that value (which describes the DP segment) to 1
+        segStates = segStates[:-1] + "1" 
 
     # light the segments according to the lookup dictionary values
-    for i in range(len(segValues)):
-        board.digital_pin_write(segPins[i], int(segValues[i]))
+    for i in range(len(segStates)):
+        board.digital_pin_write(segPins[i], int(segStates[i]))
 
 def cycle_digits(message, board, duration, refreshRate):
     """
@@ -160,7 +163,7 @@ def cycle_digits(message, board, duration, refreshRate):
 
     Description: 
                 Contains the logic to achieve the effect of multiple digits 'being on at once'.
-                Cycles through each digit of the display and turns on/off
+                Cycles through each digit of the display and turns it on if appropriate.
                 Contains calls to function 'enable_segments'.
 
     Parameters: 
