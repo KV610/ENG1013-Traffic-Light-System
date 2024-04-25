@@ -1,17 +1,15 @@
 # File name: main.py 
 # Purpose: Contains the traffic light system logic 
-# Version '0.0' - Edited By: 'James Armit' (09/04/2024) - file created with polling loop and control subsystem
-# Version '1.0' - Edited By: 'Karthik Vaideeswaran' (09/04/2024) - created function led_status for m2p1
+# Version '0.0' - Edited By: 'James Armit' (09/04/24) - file created with polling loop and control subsystem
+# Version '1.0' - Edited By: 'Karthik Vaideeswaran' (09/04/24) - created function led_status for m2p1
 # Version '2.0' - Edited By: 'Binuda Kalugalage' (10/04/2024) - added maintenance_mode, fixed display_graph, added dummy button (ped) + ultrasonic data for m2p1
-# Version '3.0' - Edited By: 'James Armit' (21/04/2024) - hardware integration
+# Version '3.0' - Edited By: 'James Armit' (21/04/24) - hardware integration
 # Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
-# Version '4.1' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
-# Version '4.2' - Edited By: 'Karthik Vaideeswaran' (24/04/2024) - Added function headers for those functions without headers
+# Version '4.2' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
 
 #--- IMPORT MODULES ----
 import time
 from pymata4 import pymata4
-import random
 import matplotlib.pyplot as plt
 
 #from change_display import display_message
@@ -24,18 +22,18 @@ pollTime = 0
 pollCycles = 3
 pollInterval = 0.2
 currentStage = 1 
-stageChangeCycles = 10
-stage1Duration = 10
+stageChangeCycles = 2
+stage1Duration = 2
 stage2Duration = 1
 stage3Duration = 1
-stage4Duration = 10
+stage4Duration = 2
 stage5Duration = 1
 stage6Duration = 1
 cycleDuration = 3.00
 mainRoadLights = "Green"
 sideRoadLights = "Red"
 pedestrianLights = "Red"
-storageMaxSize = 3
+storageMaxSize = 2
 pulseOn = True
 
 # maintenance mode variables
@@ -49,19 +47,19 @@ systemVariables = {"presetPIN": 2005,
 # This dictionary is the one which can be updated in the services subsection
 # Only editable variables should be in this dictionary 
 systemVariables = {
-    'presetPIN': 2005,
-    'maxPinAttempts': 3, 
-    'lockedTime': 5,
     'pollCycles' : 12,
     'pollInterval' : 0.05,
-    'stage1Duration': 10,
+    'stage1Duration': 2,
     'stage2Duration': 1,
     'stage3Duration': 1,
-    'stage4Duration': 10,
+    'stage4Duration': 2,
     'stage5Duration': 1,
     'stage6Duration': 1,
     'cycleDuration': 3.00,
-    'storageMaxSize': 5
+    'storageMaxSize': 2,
+    "presetPIN": 2005,
+    "maxPinAttempts": 3, 
+    "lockedTime": 5
 }
 
 dataStorage = []
@@ -76,11 +74,14 @@ speedData = []
 def seven_seg_display_placeholder(message):
     """
     Function: seven_seg_display_placeholder
-    Description: Outputs a message to console that matches message on 7-seg display
-    Parameters:
-        message (string): The desired text to be output to the 7-seg display
-    Returns:
-        None
+
+    Descrpition: A placeholder function which provides console outputs where the 7 segment display would be updated. 
+    During demonstration, the outputs of this function can be typed immediatly into the 7 segment display file
+
+    Parameters: message (string): A 4 character message which can include any alphanumeric characters. If the string is longer than
+    4 characters, any characters after 4 are ignored
+
+    Returns: None
     """
     print("\n--- 7 SEG DISPLAY OUTPUT ---")
     if type(message) == str:
@@ -93,11 +94,12 @@ def seven_seg_display_placeholder(message):
 def display_graph(ultrasonic):
     """
     Function: display_graph
-    Description: Plots a graph of the last 20 seconds of distance data collected by ultrasonic sensor
-    Parameters:
-        ultrasonic (list): Contains last 20 seconds of distance data from ultrasonic sensor
-    Returns:
-    None
+
+    Description: Called in Data Observation to produce a graph of the last 20 seconds of ultrasonic sensor data
+
+    Parameters: ultrasonic (list) a list containing the past 20 seconds of ultrasonic data 
+
+    Returns: None 
     """
     global dataStorage
     distanceData = []
@@ -115,14 +117,20 @@ def display_graph(ultrasonic):
        time.sleep(2)
        return
     
-    plt.title("Distance from oncoming traffic vs Time")
-    plt.plot(timeData,distanceData, marker="o")
-    plt.xlabel("Time (seconds)")
-    plt.ylabel("Distance (cm)")
+    try:
+        plt.title("Distance from oncoming traffic vs Time")
+        plt.plot(timeData[-80:-1],distanceData[-80:-1], marker="o")
+        plt.xlabel("Time (seconds)")
+        plt.ylabel("Distance (cm)")
 
-    plt.show() 
+        plt.show() 
 
-    return plt
+        plt.savefig("Ultrasonic Data.png")
+
+        return plt
+    except IndexError:
+        print("\nInsufficient Data")
+        time.sleep(2)
 
 def services():
     """
@@ -139,13 +147,6 @@ def services():
 
     global dataStorage 
     while True:
-        ledLights = {
-                'Main Road Light': "Yellow",
-                'Side Road Light': "Yellow",
-                'Pedestrian Light': "Yellow"
-            }
-        update_LED_placeholder(ledLights)
-
         seven_seg_display_placeholder("srvc")
 
         print("\n---------------------------")
@@ -181,7 +182,7 @@ def services():
                     print("\nEntering data observation mode...\n")
                     inputData = []
                     try:
-                        for i in range(len(dataStorage)):
+                        for i in range(len(dataStorage[0])):
                             inputData.append(dataStorage[i]['data']['ultrasonic'])
                         display_graph(inputData).savefig("Ultrasonic_Data.png")
                         print("Graph displayed")
@@ -194,6 +195,31 @@ def services():
                     continue
         except KeyboardInterrupt:
             continue
+
+def update_system_variables(updatedVariables):
+    """
+    Function: update_system_variables
+
+    Description: Called to update the global variables of the file to the values found in systemVariables. 
+    This allows the modified variables from maintenence to be saved, displayed and used.
+
+    Parameters: updatedVariables (dict) An updated list of variables passed in from maintenence (AS OF V4.1, THIS IS NOT RELEVANT)
+
+    Returs: None
+    """
+    global systemVariables, pollCycles, pollInterval, stage1Duration, stage2Duration, stage3Duration, stage4Duration, stage5Duration, stage6Duration, cycleDuration, storageMaxSize
+    systemVariables = updatedVariables
+    # Update all modifiable variables
+    pollCycles = systemVariables['pollCycles']
+    pollInterval = systemVariables['pollInterval']
+    stage1Duration = systemVariables['stage1Duration']
+    stage2Duration = systemVariables['stage2Duration']
+    stage3Duration = systemVariables['stage3Duration']
+    stage4Duration = systemVariables['stage4Duration']
+    stage5Duration = systemVariables['stage5Duration']
+    stage6Duration = systemVariables['stage6Duration']
+    cycleDuration = systemVariables['cycleDuration']
+    storageMaxSize = systemVariables['storageMaxSize']
 
 def maintenance():
     """
@@ -209,7 +235,7 @@ def maintenance():
 
     seven_seg_display_placeholder("adjt")
 
-    global failCount, systemVariables, currentData
+    global failCount, systemVariables, currentData,systemVariables,pollCycles,pollInterval,stage1Duration,stage4Duration
 
     stage_6() # call stage 6
 
@@ -254,8 +280,9 @@ def maintenance():
 
                             if chosenParam in range(1, len(systemVariables) + 1):
                                 chosenKey = list(systemVariables.keys())[chosenParam - 1]
-                                chosenValue = int(input(f"Please enter the value you would like to set '{chosenKey}' to: "))
+                                chosenValue = float(input(f"Please enter the value you would like to set '{chosenKey}' to: "))
                                 systemVariables[chosenKey] = chosenValue
+                                update_system_variables(systemVariables)
 
                                 print(f"\nUpdated parameter [{chosenParam}] {chosenKey} to {chosenValue}")
                                 time.sleep(1)
@@ -280,6 +307,7 @@ def maintenance():
             print()
             continue
 
+
 # ACTUAL HARDWARE INTEGRATED FUNCTION
 def input_data(cycles,intervalLength):
     """
@@ -295,13 +323,22 @@ def input_data(cycles,intervalLength):
     
     """
     try:
-        global pedestrians
+        global pedestrians,currentStage
         global pollTime
         global pulseOn
         triggerPin = 5
         echoPin = 4
         pedestrians = 0
-        for i in range(cycles*4):
+        for i in range(int(round(cycles*4))):
+            # --------  FLASHING ----------
+            if currentStage == 5:
+                board.set_pin_mode_digital_output(7)
+                if pulseOn == True:
+                    board.digital_write(7,1)
+                    pulseOn = False
+                elif pulseOn == False:
+                    board.digital_write(7,0)
+                    pulseOn = True 
             # -------- PEDESTRIANS -------
             board.set_pin_mode_digital_input(3)
             pedButton = 3
@@ -323,18 +360,16 @@ def input_data(cycles,intervalLength):
             #        print("Object detected in range")
             #    if ultrasonicData[-1][0] < 60 and result[0] == 60:
             #        print("Object has left range")
-            if result[1] != 0:
-                ultrasonicData.append(result)
             
             #print(f"The nearest object is {result[0]} cm away at {result[1]}")
             # Find the change in distance and time over one inteval
             # Note that ultrasonicData[-1] = ultrasonicData[-2] for some reason
-            if i >= 3:
+            if i >= 2:
                 try:
-                    deltaD = result[0] - ultrasonicData[-1][0]
+                    deltaD = abs(result[0] - ultrasonicData[-1][0])
                     deltaT = result[1] - ultrasonicData[-1][1]
                     speed = deltaD / deltaT
-                    if speed > 0.1:
+                    if speed > 0.01:
                         #print(f"The current speed is {speed:.3f} cm/s")
                         speedData.append(speed)
                     else:
@@ -342,6 +377,8 @@ def input_data(cycles,intervalLength):
                         pass
                 except ZeroDivisionError:
                     pass
+            if result[1] != 0:
+                ultrasonicData.append(result)
             time.sleep(intervalLength)
             pollTime += intervalLength
         for i in speedData:
@@ -404,12 +441,12 @@ def input_data(cycles,intervalLength):
     
 def stage_1():
     """
-    Function: stage_1
-    Description: Sets LED status as required for stage 1 and runs the stage for the required amount of time (30s or 10 cycles)
-    Parameters:
-        None
-    Returns:
-        None
+    Function name: stage 1
+
+    Description: A function which sets the colours of the LED lights and resets the number of cycles to stage change
+
+    Parameters: None 
+    Returns: None
     """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 1
@@ -426,12 +463,12 @@ def stage_1():
 
 def stage_2():
     """
-    Function: stage_2
-    Description: Sets LED status as required for stage 2 and runs the stage for the required amount of time (3s or 1 cycle)
-    Parameters:
-        None
-    Returns:
-        None
+    Function name: stage 2
+
+    Description: A function which sets the colours of the LED lights and resets the number of cycles to stage change
+
+    Parameters: None 
+    Returns: None
     """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 2
@@ -446,12 +483,12 @@ def stage_2():
 
 def stage_3():
     """
-    Function: stage_3
-    Description: Sets LED status as required for stage 3 and runs the stage for the required amount of time (3s or 1 cycles)
-    Parameters:
-        None
-    Returns:
-        None
+    Function name: stage 1
+
+    Description: A function which sets the colours of the LED lights and resets the number of cycles to stage change
+
+    Parameters: None 
+    Returns: None
     """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 3
@@ -460,7 +497,7 @@ def stage_3():
     sideRoadLights = "Red"
     pedestrianLights = "Red"
 
-    print(f"Pedestrians: {pedestrians}")
+    print(f"\nPedestrians detected: {pedestrians} ")
 
     stageChangeCycles = stage3Duration
 
@@ -468,12 +505,12 @@ def stage_3():
 
 def stage_4():
     """
-    Function: stage_4
-    Description: Sets LED status as required for stage 4 and runs the stage for the required amount of time (30s or 10 cycles)
-    Parameters:
-        None
-    Returns:
-        None
+    Function name: stage 1
+
+    Description: A function which sets the colours of the LED lights and resets the number of cycles to stage change
+
+    Parameters: None 
+    Returns: None
     """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 4
@@ -488,12 +525,12 @@ def stage_4():
 
 def stage_5():
     """
-    Function: stage_5
-    Description: Sets LED status as required for stage 5 and runs the stage for the required amount of time (3s or 1 cycle)
-    Parameters:
-        None
-    Returns:
-        None
+    Function name: stage 1
+
+    Description: A function which sets the colours of the LED lights and resets the number of cycles to stage change
+
+    Parameters: None 
+    Returns: None
     """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 5
@@ -508,12 +545,12 @@ def stage_5():
 
 def stage_6():
     """
-    Function: stage_6
-    Description: Sets LED status as required for stage 6 and runs the stage for the required amount of time (3s or 1 cycle)
-    Parameters:
-        None
-    Returns:
-        None
+    Function name: stage 1
+
+    Description: A function which sets the colours of the LED lights and resets the number of cycles to stage change
+
+    Parameters: None 
+    Returns: None
     """
     global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 6
@@ -548,15 +585,18 @@ def set_stage(current):
         stage_6()
     elif current == 6:
         stage_1()
+    print(f"\n-----------------\n    STAGE {currentStage}   \n-----------------")
 
 def update_LED_placeholder(ledDict):
     """
-    Function: update_LED_place_holder
-    Description: Changes LED status of main road, side road and pedestrian lights based on current stage
-    Parameters:
-        ledDict (dictionary): Contains dictionary of which LEDs should be on/off for each set of lights for the current stage
-    Returns:
-        None
+    Function: update_LED_placeholder
+
+    Description: Sends a 0V output to all pins associated with LED's before selectivley turning the necessary LED's on 
+    as per the value of the main, side and pedestrian lights
+
+    Parameters: ledDict (dict) a dictionary with the current colours of the main, side and pedestrian lights as per the stage
+
+    Returns: None
     """
     global currentStage
     print("---- LED LIGHT OUTPUT --- ")
@@ -610,7 +650,7 @@ def main():
             # call all input functions
             #   currentData['data'] = input_data(12,0.05)  THIS IS THE ACTUAL HARDWARE INTEGRATED FUNCTION
             # Add a header in the console
-            print(f"\n-----------------\n    STAGE {currentStage}   \n-----------------")
+            print(f"\n-----------------\n    CYCLE     ")
             currentData['data'] = input_data(pollCycles,pollInterval)
             dataStorage.append(currentData)
             if len(dataStorage) > storageMaxSize:
@@ -639,8 +679,8 @@ def main():
 
             delayTime = cycleDuration - pollTime
             print(f"The sensor poll took {pollTime:.2f} seconds")
-            time.sleep(delayTime)
             stageChangeCycles -= 1 
+            time.sleep(delayTime)
     except KeyboardInterrupt:
         services()
         return
