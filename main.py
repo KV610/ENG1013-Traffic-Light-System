@@ -12,6 +12,8 @@ import time
 from pymata4 import pymata4
 import matplotlib.pyplot as plt
 
+#from change_display import display_message
+
 board = pymata4.Pymata4()
 
 #   ----------------------- INITIALISE GLOBAL VARIABLES AND VARIABLE DICTIONARY------------------------------
@@ -33,7 +35,13 @@ sideRoadLights = "Red"
 pedestrianLights = "Red"
 storageMaxSize = 2
 pulseOn = True
+
+# maintenance mode variables
 failCount = 0
+systemVariables = {"presetPIN": 2005,
+          "maxPinAttempts.": 3, 
+          "lockedTime": 5}
+
 
 # -- VARIABLE DICTIONARY CONTATINING DEFAULT VALUES -- 
 # This dictionary is the one which can be updated in the services subsection
@@ -288,6 +296,7 @@ def maintenance():
                     if failCount >= systemVariables['maxPinAttempts']:
                         print(f"\nToo many incorrect attempts. Try again in {systemVariables['lockedTime']} seconds.")
                         seven_seg_display_placeholder("Locd")
+                        # display_message(board, 'Locd', systemVariables['lockedTime'], False)
                         time.sleep(systemVariables['lockedTime'])
                         failCount = 0
                     else:
