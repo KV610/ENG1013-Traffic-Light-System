@@ -664,31 +664,24 @@ def update_LED_placeholder(ledDict):
     Returns: None
     """
     global currentStage
-    print("---- LED LIGHT OUTPUT --- ")
-    ledMapping = {
-        'main': {
-            "Green": 13,
-            "Yellow": 12,
-            "Red": 11
-        },
-        'side': {
-            "Green": 10,
-            "Yellow": 9,
-            "Red": 8
-        },
-        'pedestrian': {
-            "Green": 7,
-            "Red": 6
-        }
-    }
-    for keys in ledDict:
-        print(f"{keys} is set to {ledDict[keys]} LED active")
-    for i in range(6,14):
-        board.set_pin_mode_digital_output(i)
-        board.digital_write(i,0)
-    board.digital_write(ledMapping['main'][mainRoadLights],1)
-    board.digital_write(ledMapping["side"][sideRoadLights],1)
-    board.digital_write(ledMapping["pedestrian"][pedestrianLights],1)
+    global currentStage
+    serPin = 11
+    srclk = 12
+    rclk = 13
+    ledDict = {
+    1:[1,0,1,0,0,0,0,1],
+    2:[1,0,1,0,0,0,1,0],
+    3:[1,0,1,0,0,1,0,0],
+    4:[0,1,0,0,1,1,0,0],
+    5:[0,1,0,1,0,1,0,0],
+    6:[1,0,1,0,0,1,0,0]
+}   
+    for i in ledDict[currentStage]:
+        board.digital_write(serPin,i)
+        board.digital_write(srclk,0)
+        board.digital_write(srclk,1)
+    board.digital_write(rclk,0)
+    board.digital_write(rclk,1)
     
 
 
