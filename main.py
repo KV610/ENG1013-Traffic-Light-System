@@ -6,6 +6,7 @@
 # Version '3.0' - Edited By: 'James Armit' (21/04/24) - hardware integration
 # Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
 # Version '4.2' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
+# Version '4.3' - Edited By: 'Karthik Vaideeswaran' (08/05/2024) - Added LDR, Thermistor and 2nd Ultrasonic Sensor Data Collection
 
 #--- IMPORT MODULES ----
 import time
@@ -57,9 +58,13 @@ systemVariables = {
 dataStorage = []
 currentData = {}
 
-pedestrian_data = []
+pedestrianData = []
 
-ultrasonicData = []
+ldrData = []
+thermData = []
+
+ultrasonicDataDistance = []
+ultrasonicDataHeight = []
 ultrasonicPlaceholder = []
 speedData = []
 
@@ -83,7 +88,7 @@ def seven_seg_display_placeholder(message):
     else:
         print("Message must be a string")
 
-def display_graph(ultrasonic):
+def display_graph(ultrasonic, graph_type):
     """
     Function: display_graph
 
@@ -94,14 +99,14 @@ def display_graph(ultrasonic):
     Returns: None 
     """
     global dataStorage
-    distanceData = []
+    xAxisData = []
     timeData = []
 
     firstTime = ultrasonic[0][0][1]
 
     for j in range(len(ultrasonic)):
         for i in ultrasonic[j]:
-            distanceData.append(i[0])
+            xAxisData.append(i[0])
             timeData.append((i[1]-firstTime))
 
     if len(timeData) < 7:
@@ -110,11 +115,19 @@ def display_graph(ultrasonic):
        return
     
     try:
-        plt.title("Distance from oncoming traffic vs Time")
-        plt.plot(timeData[-80:-1],distanceData[-80:-1], marker="o")
+        if graph_type == "D":
+            plt.title("Distance from oncoming traffic vs Time")
+            plt.ylabel("Height (cm)")
+        elif graph_type == "H":
+            plt.title("Height of vehicle vs Time")
+            plt.ylabel("Height (cm)")
+
+
+
+        plt.plot(timeData[-80:-1],xAxisData[-80:-1], marker="o")
         plt.xlabel("Time (seconds)")
         plt.ylabel("Distance (cm)")
-
+        plt.grid(True)
         plt.show() 
 
         plt.savefig("Ultrasonic Data.png")
@@ -172,11 +185,27 @@ def services():
                     maintenance()
                 elif mode == 3:
                     print("\nEntering data observation mode...\n")
-                    inputData = []
+                    inputDataDistance = []
+                    inputDataHeight = []
                     try:
                         for i in range(len(dataStorage[0])):
-                            inputData.append(dataStorage[i]['data']['ultrasonic'])
-                        display_graph(inputData).savefig("Ultrasonic_Data.png")
+                            inputDataDistance.append(dataStorage[i]['data']['ultrasonicDistance'])
+                            inputDataHeight.append(dataStorage[i]['data']['ultrasonicHeight'])
+
+                        print(inputDataHeight)
+                        
+                        while True:
+                            graph = input("Would you like to display Distance or Height? (D/H): ")
+
+                            if graph == "D":
+                                display_graph(inputDataDistance, "D").savefig("Ultrasonic_Data_Distance.png")
+                                break
+                            elif graph == "H":
+                                display_graph(inputDataHeight, "H").savefig("Ultrasonic_Data_Distance.png")
+                                break
+                            else:
+                                continue
+
                         print("Graph displayed")
                     except IndexError:
                         print("\nNo data available to graph, please run normal operations for at least 20 seconds\n")
@@ -309,6 +338,7 @@ def input_data(cycles,intervalLength):
     Parameters:
         cycles (int): the number of measurements to take
         intervalLength (float): the time delay between each measurement in seconds
+        maxHeight (int): the maximum height of a passing vechile before over-height led is triggered
     Returns: 
         ouput (dictionary): contains the arrays output by each sensor to be interpreted in the polling loop
     
@@ -317,8 +347,11 @@ def input_data(cycles,intervalLength):
         global pedestrians,currentStage
         global pollTime
         global pulseOn
-        triggerPin = 5
-        echoPin = 4
+        global ldrData, thermData
+        triggerPinDistance = 5
+        echoPinDistance = 4
+        triggerPinHeight = 2
+        echoPinHeight = 1
         pedestrians = 0
         for i in range(int(round(cycles*4))):
             # --------  FLASHING ----------
@@ -334,18 +367,18 @@ def input_data(cycles,intervalLength):
             board.set_pin_mode_digital_input(3)
             pedButton = 3
             button = board.digital_read(pedButton)
-            pedestrian_data.append(button[0])
-            #print(pedestrian_data)
-            if len(pedestrian_data) >= 2:
-                if button[0] > pedestrian_data[-1]:
+            pedestrianData.append(button[0])
+            #print(pedestrianData)
+            if len(pedestrianData) >= 2:
+                if button[0] > pedestrianData[-1]:
                     print("Button pressed!")
-                elif button[0] < pedestrian_data[1]:
+                elif button[0] < pedestrianData[1]:
                     print("Button released!")
-            # --------  ULTRASONIC  -------------
+            # --------  ULTRASONIC-DISTANCE  -------------
             speedData = []
             sumSpeed = 0
-            board.set_pin_mode_sonar(triggerPin,echoPin,timeout=250000)
-            result = board.sonar_read(triggerPin)     
+            board.set_pin_mode_sonar(triggerPinDistance,echoPinDistance,timeout=250000)
+            resultDistance = board.sonar_read(triggerPinDistance)     
             #if i >= 3:  
             #    if ultrasonicData[-1][0] == 60 and result[0] < 60:
             #        print("Object detected in range")
@@ -355,10 +388,26 @@ def input_data(cycles,intervalLength):
             #print(f"The nearest object is {result[0]} cm away at {result[1]}")
             # Find the change in distance and time over one inteval
             # Note that ultrasonicData[-1] = ultrasonicData[-2] for some reason
+
+            # --------- ULTRASONIC-HEIGHT ------------
+            board.set_pin_mode_sonar(triggerPinHeight,echoPinHeight,timeout = 250000)
+            resultHeight = board.sonar_read(triggerPinHeight)
+            resultHeight[0] = 28 - resultHeight[0]
+
+
+            # if resultHeight[0] > maxHeight:
+            #     #Do stuff
+
+
+            # if resultHeight[0] > 0:
+            #     #Display resultHeight on 7-SEG
+            # else:
+            #     pass
+
             if i >= 2:
                 try:
-                    deltaD = abs(result[0] - ultrasonicData[-1][0])
-                    deltaT = result[1] - ultrasonicData[-1][1]
+                    deltaD = abs(resultDistance[0] - ultrasonicDataDistance[-1][0])
+                    deltaT = resultDistance[1] - ultrasonicDataDistance[-1][1]
                     speed = deltaD / deltaT
                     if speed > 0.01:
                         #print(f"The current speed is {speed:.3f} cm/s")
@@ -368,28 +417,53 @@ def input_data(cycles,intervalLength):
                         pass
                 except ZeroDivisionError:
                     pass
-            if result[1] != 0:
-                ultrasonicData.append(result)
+            if resultDistance[1] != 0:
+                ultrasonicDataDistance.append(resultDistance)
+                ultrasonicDataHeight.append(resultHeight)
             time.sleep(intervalLength)
             pollTime += intervalLength
         for i in speedData:
             sumSpeed += i
         averageSpeed = sumSpeed / cycles * 4
         print(f"The average speed during the intervals was {averageSpeed:.3f} cm/s")
-        for i in range(len(pedestrian_data)):
-            if pedestrian_data[i] == 1:
-                if pedestrian_data[i] > pedestrian_data[i-1]:
+        for i in range(len(pedestrianData)):
+            if pedestrianData[i] == 1:
+                if pedestrianData[i] > pedestrianData[i-1]:
                     pedestrians += 1
-        #print(f"{pedestrians} have pushed the button during the stage") - For debugging 
+        #print(f"{pedestrians} have pushed the button during the stage") - For debugging
+
+            #-------LDR---------
+            #set pins
+            ldrPin = board.set_pin_mode_analog_input(1)
+
+            #store data to a variable
+            ldrResult = board.analog_read(ldrPin)
+
+            #append input data to list
+            ldrData.append(ldrResult)
+
+            #-------THERMISTOR-------
+            #set pins
+            thermPin = board.set_pin_mode_analog_input(2)
+
+            #store data to a variable
+            thermResult = board.analog_read(thermPin)
+
+            #append input data to list
+            thermData.append(thermResult)            
+
+        #---------OUTPUT DICTIONARY--------- 
         output = {
-            'pedestrian': pedestrian_data,
-            'ultrasonic': ultrasonicData
+            'pedestrian': pedestrianData,
+            'ultrasonicDistance': ultrasonicDataDistance,
+            'ultrasonicHeight': ultrasonicDataHeight,
+            'LDR': ldrData,
+            'Thermistor': thermData
         }
         return output
     except KeyboardInterrupt:
         services()
         return
-
 
 # TEST INPUTS / PLACEHOLDER FUNCTION
 #def input_data_placeholder(cycles,intervalLength):
@@ -651,7 +725,7 @@ def main():
                 set_stage(currentStage)
             if pedestrians > 1:
                 if currentStage == 1:
-                    if currentData['data']['ultrasonic'][-1][0] == 60 :
+                    if currentData['data']['ultrasonicDistance'][-1][0] == 60 :
                         if stageChangeCycles > 2:
                             stageChangeCycles = 2
                 else:
@@ -659,7 +733,7 @@ def main():
             else:
                 pass
             # print(f"Cycles to stage change: {stageChangeCycles}") - Only for debugging
-            print(f"\nThe last object was detected at {currentData['data']['ultrasonic'][-1][0]:.2f} cm")
+            print(f"\nThe last object was detected at {currentData['data']['ultrasonicDistance'][-1][0]:.2f} cm")
             ledDict = {
                 'Main Road Light': mainRoadLights,
                 'Side Road Light': sideRoadLights,
