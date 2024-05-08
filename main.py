@@ -7,6 +7,7 @@
 # Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
 # Version '4.2' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
 # Version '4.3' - Edited By: 'Karthik Vaideeswaran' (08/05/2024) - Added LDR, Thermistor and 2nd Ultrasonic Sensor Data Collection
+# Version '4.4' - Edited By: 'James Armit' (08/05/2024) - Changed the LED's to run off a shift register
 
 #--- IMPORT MODULES ----
 import time
@@ -652,7 +653,7 @@ def set_stage(current):
         stage_1()
     print(f"\n-----------------\n    STAGE {currentStage}   \n-----------------")
 
-def update_LED_placeholder(ledDict):
+def update_LED():
     """
     Function: update_LED_placeholder
 
@@ -663,7 +664,6 @@ def update_LED_placeholder(ledDict):
 
     Returns: None
     """
-    global currentStage
     global currentStage
     serPin = 11
     srclk = 12
@@ -727,13 +727,8 @@ def main():
                 pass
             # print(f"Cycles to stage change: {stageChangeCycles}") - Only for debugging
             print(f"\nThe last object was detected at {currentData['data']['ultrasonicDistance'][-1][0]:.2f} cm")
-            ledDict = {
-                'Main Road Light': mainRoadLights,
-                'Side Road Light': sideRoadLights,
-                'Pedestrian Light': pedestrianLights
-            }
-
-            update_LED_placeholder(ledDict)
+            
+            update_LED()
 
             delayTime = cycleDuration - pollTime
             print(f"The sensor poll took {pollTime:.2f} seconds")
