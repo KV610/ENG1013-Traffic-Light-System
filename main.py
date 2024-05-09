@@ -7,12 +7,13 @@
 # Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
 # Version '4.2' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
 # Version '4.3' - Edited By: 'Karthik Vaideeswaran' (08/05/2024) - Added LDR, Thermistor and 2nd Ultrasonic Sensor Data Collection
-# Version '4.4' - Edited By: 'James Armit' (08/05/2024) - Changed the LED's to run off a shift register
+# Version '4.4' - Edited By: 'Karthik Vaideeswaran' (09/05/2024) - Updated Thermisor and LDR data collection to update stageChangeCycles according to temperature and light level, respectively
 
 #--- IMPORT MODULES ----
 import time
 from pymata4 import pymata4
 import matplotlib.pyplot as plt
+import math
 
 board = pymata4.Pymata4()
 
@@ -61,13 +62,18 @@ currentData = {}
 
 pedestrianData = []
 
-ldrData = []
-thermData = []
+ldrFinal = []
+tempData = []
 
 ultrasonicDataDistance = []
 ultrasonicDataHeight = []
 ultrasonicPlaceholder = []
 speedData = []
+
+#Steinhart-Hart Equation Coefficients
+A = 1.1279/1000
+B = 2.3429/10000
+C = 8.7298/(10**8)
 
 def seven_seg_display_placeholder(message):
     """
@@ -404,7 +410,7 @@ def input_data(cycles,intervalLength):
             #     #Display resultHeight on 7-SEG
             # else:
             #     pass
-
+            # --------- SPEED ------------
             if i >= 2:
                 try:
                     deltaD = abs(resultDistance[0] - ultrasonicDataDistance[-1][0])
@@ -434,8 +440,11 @@ def input_data(cycles,intervalLength):
         #print(f"{pedestrians} have pushed the button during the stage") - For debugging
 
             #-------LDR---------
+            ldrData = []
+
             #set pins
-            ldrPin = board.set_pin_mode_analog_input(1)
+            ldrPin = 3
+            board.set_pin_mode_analog_input(ldrPin)
 
             #store data to a variable
             ldrResult = board.analog_read(ldrPin)
@@ -443,23 +452,49 @@ def input_data(cycles,intervalLength):
             #append input data to list
             ldrData.append(ldrResult)
 
+            #Loop through thermData to separate signal readings and append to thermFinal
+            for k in range(len(ldrData)):
+                ldrFinal.append(ldrData[k][0])
             #-------THERMISTOR-------
+            thermData = []
+
             #set pins
-            thermPin = board.set_pin_mode_analog_input(2)
+            thermPin = 4
+            board.set_pin_mode_analog_input(thermPin)
 
             #store data to a variable
             thermResult = board.analog_read(thermPin)
 
             #append input data to list
-            thermData.append(thermResult)            
+            thermData.append(thermResult)
+
+            #Loop through thermData to separate signal readings and append to thermFinal
+            thermFinal = []
+            resistanceData = []
+            for num in range(len(thermData)):
+                thermFinal.append(thermData[num][0])
+            
+            #Calculae Resistance
+            for n in range(len(thermFinal)):
+                thermRes = 10000*(thermFinal[n]/(1023-thermFinal[n]))
+                resistanceData.append(thermRes)
+            
+            #Find Temperature
+            for m in range(len(resistanceData)):
+                if resistanceData[m] > 0.0:
+                    invTemp = A + (B*(math.log(resistanceData[n]))) + (C*((math.log(resistanceData[n]))**3))
+                    temp = 1/invTemp - 273.15
+                    tempData.append(temp)
+                else:
+                    continue
 
         #---------OUTPUT DICTIONARY--------- 
         output = {
             'pedestrian': pedestrianData,
             'ultrasonicDistance': ultrasonicDataDistance,
             'ultrasonicHeight': ultrasonicDataHeight,
-            'LDR': ldrData,
-            'Thermistor': thermData
+            'LDR': ldrFinal,
+            'Temperature': tempData
         }
         return output
     except KeyboardInterrupt:
@@ -514,7 +549,7 @@ def stage_1():
     Parameters: None 
     Returns: None
     """
-    global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
+    global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles, tempData
     currentStage = 1
 
     mainRoadLights = "Green"
@@ -523,7 +558,17 @@ def stage_1():
 
     pedestrians = 0
 
-    stageChangeCycles = stage1Duration
+    for l in range(len(tempData)):
+        if tempData[l] > 35.0:
+            stageChangeCycles = stage1Duration + 2
+        else:
+            stageChangeCycles = stage1Duration
+
+    for p in range(len(ldrFinal)):
+        if ldrFinal[p] > 1100:
+            stageChangeCycles = stage1Duration + 5
+        else:
+            stageChangeCycles = stage1Duration
 
     seven_seg_display_placeholder("stg1")
 
@@ -585,7 +630,17 @@ def stage_4():
     sideRoadLights = "Green"
     pedestrianLights = "Green"
 
-    stageChangeCycles = stage4Duration
+    for l in range(len(tempData)):
+        if tempData[l] > 35.0:
+            stageChangeCycles = stage4Duration + 2
+        else:
+            stageChangeCycles = stage4Duration
+    
+        for q in range(len(tempData)):
+            if ldrFinal[q] > 1100:
+                stageChangeCycles = stage4Duration + 3
+            else:
+                stageChangeCycles = stage4Duration
 
     seven_seg_display_placeholder("stg4")
 
@@ -653,7 +708,7 @@ def set_stage(current):
         stage_1()
     print(f"\n-----------------\n    STAGE {currentStage}   \n-----------------")
 
-def update_LED():
+def update_LED_placeholder(ledDict):
     """
     Function: update_LED_placeholder
 
@@ -665,23 +720,31 @@ def update_LED():
     Returns: None
     """
     global currentStage
-    serPin = 11
-    srclk = 12
-    rclk = 13
-    ledDict = {
-    1:[1,0,1,0,0,0,0,1],
-    2:[1,0,1,0,0,0,1,0],
-    3:[1,0,1,0,0,1,0,0],
-    4:[0,1,0,0,1,1,0,0],
-    5:[0,1,0,1,0,1,0,0],
-    6:[1,0,1,0,0,1,0,0]
-}   
-    for i in ledDict[currentStage]:
-        board.digital_write(serPin,i)
-        board.digital_write(srclk,0)
-        board.digital_write(srclk,1)
-    board.digital_write(rclk,0)
-    board.digital_write(rclk,1)
+    print("---- LED LIGHT OUTPUT --- ")
+    ledMapping = {
+        'main': {
+            "Green": 13,
+            "Yellow": 12,
+            "Red": 11
+        },
+        'side': {
+            "Green": 10,
+            "Yellow": 9,
+            "Red": 8
+        },
+        'pedestrian': {
+            "Green": 7,
+            "Red": 6
+        }
+    }
+    for keys in ledDict:
+        print(f"{keys} is set to {ledDict[keys]} LED active")
+    for i in range(6,14):
+        board.set_pin_mode_digital_output(i)
+        board.digital_write(i,0)
+    board.digital_write(ledMapping['main'][mainRoadLights],1)
+    board.digital_write(ledMapping["side"][sideRoadLights],1)
+    board.digital_write(ledMapping["pedestrian"][pedestrianLights],1)
     
 
 
@@ -727,8 +790,13 @@ def main():
                 pass
             # print(f"Cycles to stage change: {stageChangeCycles}") - Only for debugging
             print(f"\nThe last object was detected at {currentData['data']['ultrasonicDistance'][-1][0]:.2f} cm")
-            
-            update_LED()
+            ledDict = {
+                'Main Road Light': mainRoadLights,
+                'Side Road Light': sideRoadLights,
+                'Pedestrian Light': pedestrianLights
+            }
+
+            update_LED_placeholder(ledDict)
 
             delayTime = cycleDuration - pollTime
             print(f"The sensor poll took {pollTime:.2f} seconds")
