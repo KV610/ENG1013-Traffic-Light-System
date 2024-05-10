@@ -565,7 +565,7 @@ def stage_1():
             stageChangeCycles = stage1Duration
 
     for p in range(len(ldrFinal)):
-        if ldrFinal[p] > 1100:
+        if ldrFinal[p] > 1000:
             stageChangeCycles = stage1Duration + 5
         else:
             stageChangeCycles = stage1Duration
@@ -637,7 +637,7 @@ def stage_4():
             stageChangeCycles = stage4Duration
     
         for q in range(len(tempData)):
-            if ldrFinal[q] > 1100:
+            if ldrFinal[q] > 1000:
                 stageChangeCycles = stage4Duration + 3
             else:
                 stageChangeCycles = stage4Duration
