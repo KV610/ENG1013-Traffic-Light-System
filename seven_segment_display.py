@@ -2,15 +2,20 @@
 # Created By: Binuda Kalugalage
 # Created Date: 01/04/2024
 # Purpose: Contains the code for configuring the seven segment display and showing 4-digit alphanumeric messages on it 
-# version = '5.0'
+# version = '7.0'
 
 # Import modules
 from pymata4 import pymata4
 import time
 
 # Define pins
-segPins = [3, 4, 5, 6, 10, 11, 9, 2] # define pins powering the segments of the digits, ordered such that they map to segments a, b, c, d, e, f, g and DP
-digitPins = [12, 7, 8, 13] # define pins powering the digits themselves, ordered such that they map to pins 1, 2, 3 and 4
+digitPins = [4, 5, 6, 7]
+SER = 8
+RCLK = 9
+SRCLK = 10
+SRCLR = 2
+
+allPins = [4, 5, 6, 7, 8, 9, 10]
 
 # Define lookup dictionary for all alphanumeric characters (for which segments to turn on)
 lookupDict = {
@@ -81,6 +86,14 @@ lookupDict = {
 
     ' ': "00000000"
 }
+
+def click_srclk(board):
+    board.digital_pin_write(SRCLK, 1)
+    board.digital_pin_write(SRCLK, 0)
+
+def click_rclk(board):
+    board.digital_pin_write(RCLK, 1)
+    board.digital_pin_write(RCLK, 0)
 
 def format_message(charString):
     """
@@ -153,9 +166,12 @@ def enable_segments(board, currentChar):
         # change the last character of that value (which describes the DP segment) to 1
         segStates = segStates[:-1] + "1" 
 
-    # light the segments according to the lookup dictionary values
-    for i in range(len(segStates)):
-        board.digital_pin_write(segPins[i], int(segStates[i]))
+    # enable the segments according to the lookup dictionary values
+    for bit in segStates[::-1]:
+        board.digital_pin_write(SER, int(bit)) # SER (1 or 0)
+
+        click_srclk(board)
+
 
 def cycle_digits(message, board, duration, refreshRate):
     """
@@ -182,21 +198,35 @@ def cycle_digits(message, board, duration, refreshRate):
     while time.time() < currentTime + duration:
 
         # for each character in the list 'message' 
-        for ch in message:
+        for ch in message[::-1]:
             # reset the counter digitNum to 1 after all four digits has been cycled through once
             if digitNum >= 5:
                 digitNum = 1
 
-            # turn off all digits
+            # turn previous pin off
+            board.digital_pin_write(digitPins[digitNum-1], 1)
+
+            # disable all segments
+            board.digital_pin_write(SRCLR, 0)
+            click_rclk(board)
+            board.digital_pin_write(SRCLR, 1)
+
             for pin in digitPins:
                 board.digital_pin_write(pin, 1)
 
             # turn on the appropriate segment pins for the given character ch on all digits
             enable_segments(board, ch)
+            # for bit in lookupDict[ch][::-1]:
+            #     board.digital_pin_write(SER, int(bit)) # SER (1 or 0)
+
+            #     # CLICK SRCLK
+            #     click_srclk(board)
+
+
+            click_rclk(board)
 
             # turn on only the current digit on the display
             board.digital_pin_write(digitPins[digitNum - 1], 0) # subtract digitPins by 1 to match Python's list indexing syntax
-
 
             # all four digits are updated every 1/refreshRate seconds, 
             # therefore each of the FOUR (4) digits are updated every (1/refreshRate)/4 seconds
@@ -224,30 +254,29 @@ def display_message(message, board, timeOn, refreshRate = 60):
     Returns: None
     """
 
-    allPins = segPins + digitPins
-
-    # set up pins for digital output
-    for pin in allPins:
-        board.set_pin_mode_digital_output(pin)
 
 
     cycle_digits(format_message(message), board, timeOn, refreshRate) # show message for timeOn seconds
-    cycle_digits("    ", board, 1, refreshRate) # clear the message by turning off all digits
+    cycle_digits("    ", board, 3, refreshRate) # clear the message by turning off all digits
 
 
 
 
 # ------------------ BELOW CODE IS FOR MILESTONE 2 DEMONSTRATION ONLY ------------------ 
-segBoard = pymata4.Pymata4() # define the Arduino board
+board = pymata4.Pymata4() # define the Arduino board
+# set up pins for digital output
+for pin in allPins:
+    board.set_pin_mode_digital_output(pin)
+
 while True:
     try:
         displayText = input("Please enter the message you would like to display: ") # the message to be displayed
         onTime = float(input("Time to stay on: ")) # time for the message to be displayed
-        display_message(displayText, segBoard, onTime, 60) # call the seven segment display function
+        display_message(displayText, board, onTime, 60) # call the seven segment display function
     except ValueError:
         print("\nPlease ensure that the time to stay on is a float.\n")
         continue
     except KeyboardInterrupt: # shutdown the board and quit the program on a keyboard interrupt (Control-C)
         print("\nQuitting...")
-        segBoard.shutdown()
+        board.shutdown()
         quit()
