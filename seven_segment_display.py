@@ -2,7 +2,7 @@
 # Created By: Binuda Kalugalage
 # Created Date: 01/04/2024
 # Purpose: Contains the code for configuring the seven segment display and showing 4-digit alphanumeric messages on it 
-# version = '7.0'
+# version = '8.0'
 
 # Import modules
 from pymata4 import pymata4
@@ -83,6 +83,7 @@ lookupDict = {
     'x': "01101110",
     'y': "01110110",
     'z': "11011010",
+    '^': "10000000",
 
     ' ': "00000000"
 }
@@ -95,7 +96,7 @@ def click_rclk(board):
     board.digital_pin_write(RCLK, 1)
     board.digital_pin_write(RCLK, 0)
 
-def format_message(charString):
+def format_message(charString, scrolling):
     """
     Function name: format_message
 
@@ -133,12 +134,13 @@ def format_message(charString):
         else:
             charIndex += 1 # go to the next character, with nothing happening to the current character
     
-    # truncate or extend the message to length 4
-    while len(charList) != 4:
-        if len(charList) < 4:
-            charList.append(" ") # extend message to length 4
-        else:
-            charList = charList[:4] # truncate message to length 4
+    # truncate or extend the message to length 4 if static
+    if not scrolling:
+        while len(charList) != 4:
+            if len(charList) < 4:
+                charList.append(" ") # extend message to length 4
+            else:
+                charList = charList[:4] # truncate message to length 4
     
     return charList
 
@@ -173,7 +175,7 @@ def enable_segments(board, currentChar):
         click_srclk(board)
 
 
-def cycle_digits(message, board, duration, refreshRate):
+def cycle_digits(message, board, refreshRate):
     """
     Function name: cycle_digits
 
@@ -192,52 +194,90 @@ def cycle_digits(message, board, duration, refreshRate):
     """ 
 
     digitNum = 1 # counter for the current digit (1, 2, 3 or 4, from left to right)
-    currentTime = time.time() # the current time before displaying the message
 
-    # for the specified duration, execute the code below
-    while time.time() < currentTime + duration:
+    # for each character in the list 'message' 
+    for ch in message[::-1]:
+        # reset the counter digitNum to 1 after all four digits has been cycled through once
+        if digitNum >= 5:
+            digitNum = 1
 
-        # for each character in the list 'message' 
-        for ch in message[::-1]:
-            # reset the counter digitNum to 1 after all four digits has been cycled through once
-            if digitNum >= 5:
-                digitNum = 1
+        # turn previous pin off
+        board.digital_pin_write(digitPins[digitNum-1], 1)
 
-            # turn previous pin off
-            board.digital_pin_write(digitPins[digitNum-1], 1)
+        # time.sleep((1/refreshRate)/4)
 
-            # disable all segments
-            board.digital_pin_write(SRCLR, 0)
-            click_rclk(board)
-            board.digital_pin_write(SRCLR, 1)
+        # disable all segments
+        board.digital_pin_write(SRCLR, 0)
+        click_rclk(board)
+        board.digital_pin_write(SRCLR, 1)
 
-            for pin in digitPins:
-                board.digital_pin_write(pin, 1)
+        for pin in digitPins:
+            board.digital_pin_write(pin, 1)
 
-            # turn on the appropriate segment pins for the given character ch on all digits
-            enable_segments(board, ch)
-            # for bit in lookupDict[ch][::-1]:
-            #     board.digital_pin_write(SER, int(bit)) # SER (1 or 0)
+        # turn on the appropriate segment pins for the given character ch on all digits
+        enable_segments(board, ch)
 
-            #     # CLICK SRCLK
-            #     click_srclk(board)
+        click_rclk(board)
 
+        # turn on only the current digit on the display
+        board.digital_pin_write(digitPins[digitNum - 1], 0) # subtract digitPins by 1 to match Python's list indexing syntax
 
-            click_rclk(board)
+        # all four digits are updated every 1/refreshRate seconds, 
+        # therefore each of the FOUR (4) digits are updated every (1/refreshRate)/4 seconds
+        try:
+            time.sleep((1/refreshRate)/4)
+        except ZeroDivisionError:
+            time.sleep((1/60)/4) # if the refresh rate is 0, the default will be 60hz
 
-            # turn on only the current digit on the display
-            board.digital_pin_write(digitPins[digitNum - 1], 0) # subtract digitPins by 1 to match Python's list indexing syntax
+        digitNum += 1 # go to the next digit on the display
 
-            # all four digits are updated every 1/refreshRate seconds, 
-            # therefore each of the FOUR (4) digits are updated every (1/refreshRate)/4 seconds
-            try:
-                time.sleep((1/refreshRate)/4)
-            except ZeroDivisionError:
-                time.sleep((1/60)/4) # if the refresh rate is 0, the default will be 60hz
+def scroll_format(wholeString):
 
-            digitNum += 1 # go to the next digit on the display
+    def padded(lst, length, pad_value, direction):
+        if direction == 'L':
+            return ([pad_value] * (length - len(lst))) + lst
+        elif direction == 'R':
+            return lst + ([pad_value] * (length - len(lst)))
+
+    scrollSections = []
+    midIndex = len(wholeString) // 2  # calculate the middle index
+    
+    if len(wholeString) > 1:
+        for i in range(len(wholeString)+5):
+
+            if i <= 3:
+                subString = wholeString[0:i]
+            if i > 3:
+                subString = wholeString[-4+i:0+i] # (= wholeString[i-4:i])
+
+            if 0 < len(subString) <= 4:
+                # if in_first_half(wholeString, list(subString)):
+                if i - len(subString) > midIndex: # first half -> pad right
+                    scrollSections.append(padded(subString, 4, ' ' , 'R'))
+                elif i - len(subString) == midIndex: # exactly half -> pad to middle
+                    scrollSections.append(padded(padded(subString, 3, ' ' , 'L'), 4, ' ', 'R'))
+                else: # second half -> pad left
+                    scrollSections.append(padded(subString, 4, ' ' , 'L'))
+            elif len(subString) == 0:
+                scrollSections.append([' ', ' ', ' ', ' '])
+            elif len(subString) > 4:
+                scrollSections.append(subString)
+    elif len(wholeString) == 1:
+
+        subString = wholeString
+
+        scrollSections.append([' ', ' ', ' ', ' '])
+
+        for i in range(4):
+            scrollSections.append(padded(padded(subString, 4-i, ' ' , 'L'), 0 if i==0 else 4, ' ', 'R'))
+
+        scrollSections.append([' ', ' ', ' ', ' '])
+
+    
+    return scrollSections 
+
    
-def display_message(message, board, timeOn, refreshRate = 60):
+def display_message(message, board, timeOn, scrolling, refreshRate = 60):
     """
     Function name: display_message
 
@@ -254,15 +294,26 @@ def display_message(message, board, timeOn, refreshRate = 60):
     Returns: None
     """
 
+    formattedMessage = format_message(message, scrolling)
+
+    if scrolling:
+        scrollSections = scroll_format(formattedMessage)
+        for section in scrollSections:
+            currentTime = time.time()  # the current time before displaying the current section
+            while time.time() < currentTime + timeOn/len(scrollSections):
+                cycle_digits(section, board, refreshRate)
+    else:
+        currentTime = time.time() # the current time before displaying the message
+        # for the specified duration, execute the code below
+        while time.time() < currentTime + timeOn:
+            cycle_digits(formattedMessage, board, refreshRate) # show message for timeOn seconds
+        
+        cycle_digits("    ", board, refreshRate) # clear the message by turning off all digits
 
 
-    cycle_digits(format_message(message), board, timeOn, refreshRate) # show message for timeOn seconds
-    cycle_digits("    ", board, 3, refreshRate) # clear the message by turning off all digits
 
 
-
-
-# ------------------ BELOW CODE IS FOR MILESTONE 2 DEMONSTRATION ONLY ------------------ 
+# ------------------ BELOW CODE IS FOR DEBUGGING ONLY ------------------ 
 board = pymata4.Pymata4() # define the Arduino board
 # set up pins for digital output
 for pin in allPins:
@@ -272,7 +323,8 @@ while True:
     try:
         displayText = input("Please enter the message you would like to display: ") # the message to be displayed
         onTime = float(input("Time to stay on: ")) # time for the message to be displayed
-        display_message(displayText, board, onTime, 60) # call the seven segment display function
+
+        display_message(displayText, board, onTime, True, 120) # call the seven segment display function
     except ValueError:
         print("\nPlease ensure that the time to stay on is a float.\n")
         continue
