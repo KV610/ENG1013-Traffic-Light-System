@@ -2,7 +2,7 @@
 # Created By: Binuda Kalugalage
 # Created Date: 01/04/2024
 # Purpose: Contains the code for configuring the seven segment display and showing 4-digit alphanumeric messages on it 
-# version = '8.0'
+# version = '9.0'
 
 # Import modules
 from pymata4 import pymata4
@@ -29,7 +29,6 @@ lookupDict = {
     '7': "11100000",
     '8': "11111110",
     '9': "11100110",
-
     'A': "11101110",
     'B': "00111110",
     'C': "10011100",
@@ -83,18 +82,51 @@ lookupDict = {
     'x': "01101110",
     'y': "01110110",
     'z': "11011010",
-    '^': "10000000",
 
-    ' ': "00000000"
+    ' ': "00000000",
+    '!': "01000001",
+    '"': "01000100",
+    '#': "01111110",
+    '$': "10110110",
+    '%': "01001011",
+    '&': "01100010",
+    "'": "00000100",
+    '(': "10010100",
+    ')': "11010000",
+    '*': "10000100",
+    '+': "00001110",
+    "'": "00001000",
+    '-': "00000010",
+    '.': "00000001",
+    '/': "01001010",
+
+    ':': "10010000",
+    ';': "10110000",
+    '<': "10000110",
+    '=': "00010010",
+    '>': "11000010",
+    '?': "11001011",
+    '@': "11111010",
+    '[': "10011100",
+    '\\': "00100110",
+    ']': "11110000",
+    '^': "11000100",
+    '_': "00010000",
+    '`': "01000000",
+    '{': "01100010",
+    '|': "00001100",
+    '}': "00001110",
+    '~': "10000000"
 }
 
 def click_srclk(board):
-    board.digital_pin_write(SRCLK, 1)
-    board.digital_pin_write(SRCLK, 0)
+    board.digital_write(SRCLK, 1)
+    board.digital_write(SRCLK, 0)
 
 def click_rclk(board):
-    board.digital_pin_write(RCLK, 1)
-    board.digital_pin_write(RCLK, 0)
+    board.digital_write(RCLK, 1)
+    board.digital_write(RCLK, 0)
+
 
 def format_message(charString, scrolling):
     """
@@ -144,94 +176,19 @@ def format_message(charString, scrolling):
     
     return charList
 
-def enable_segments(board, currentChar):
-    """
-    Function name: enable_segments
-
-    Description: 
-                Controls which segment pins (of all digits) of the display are powered, depending on the current character 'currentChar'
-
-    Parameters: 
-                board (object): the Arduino board initialised using pymata
-                currentChar (string): a character of the message
-
-    Returns: None
-    """
-    
-    # in the case of "." in a digit
-    if "." not in currentChar:
-        segStates = lookupDict[str(currentChar)] # only set segStates to the value of the key currentChar (with DP segment off by default)
-    else:
-        # find the dictionary value for key currentChar which describes the on/off states for the segments of the digits
-        segStates = lookupDict[str(currentChar[:-1])] 
-        
-        # change the last character of that value (which describes the DP segment) to 1
-        segStates = segStates[:-1] + "1" 
-
-    # enable the segments according to the lookup dictionary values
-    for bit in segStates[::-1]:
-        board.digital_pin_write(SER, int(bit)) # SER (1 or 0)
-
-        click_srclk(board)
-
-
-def cycle_digits(message, board, refreshRate):
-    """
-    Function name: cycle_digits
-
-    Description: 
-                Contains the logic to achieve the effect of multiple digits 'being on at once'.
-                Cycles through each digit of the display and turns it on if appropriate.
-                Contains calls to function 'enable_segments'.
-
-    Parameters: 
-                message (list): the validated 4-digit message as a list
-                board (object): the Arduino board initialised using pymata
-                duration (float): the amount of time the message should stay on for
-                refreshRate (float): the frequency (in Hz), at which the display's 4 digits will be updated. Defaults to 60Hz.
-
-    Returns: None
-    """ 
-
-    digitNum = 1 # counter for the current digit (1, 2, 3 or 4, from left to right)
-
-    # for each character in the list 'message' 
-    for ch in message[::-1]:
-        # reset the counter digitNum to 1 after all four digits has been cycled through once
-        if digitNum >= 5:
-            digitNum = 1
-
-        # turn previous pin off
-        board.digital_pin_write(digitPins[digitNum-1], 1)
-
-        # time.sleep((1/refreshRate)/4)
-
-        # disable all segments
-        board.digital_pin_write(SRCLR, 0)
-        click_rclk(board)
-        board.digital_pin_write(SRCLR, 1)
-
-        for pin in digitPins:
-            board.digital_pin_write(pin, 1)
-
-        # turn on the appropriate segment pins for the given character ch on all digits
-        enable_segments(board, ch)
-
-        click_rclk(board)
-
-        # turn on only the current digit on the display
-        board.digital_pin_write(digitPins[digitNum - 1], 0) # subtract digitPins by 1 to match Python's list indexing syntax
-
-        # all four digits are updated every 1/refreshRate seconds, 
-        # therefore each of the FOUR (4) digits are updated every (1/refreshRate)/4 seconds
-        try:
-            time.sleep((1/refreshRate)/4)
-        except ZeroDivisionError:
-            time.sleep((1/60)/4) # if the refresh rate is 0, the default will be 60hz
-
-        digitNum += 1 # go to the next digit on the display
-
 def scroll_format(wholeString):
+    """
+    Function name: scroll_format
+
+    Description: 
+                Creates a series of 
+
+    Parameters: 
+                charString (string): the 4-digit message as a string which will be displayed
+
+    Returns: a list containing the characters of the validated and formatted input message, in order
+    """
+
 
     def padded(lst, length, pad_value, direction):
         if direction == 'L':
@@ -276,8 +233,106 @@ def scroll_format(wholeString):
     
     return scrollSections 
 
+def enable_segments(board, charA, charB):
+    """
+    Function name: enable_segments
+
+    Description: 
+                Controls which segment pins (of all digits) of the display are powered, depending on the current character 'currentChar'
+
+    Parameters: 
+                board (object): the Arduino board initialised using pymata
+                charA (string): a character of the message on display 1
+                charB (string): a character of the message on display 2
+
+    Returns: None
+    """
+    
+    # in the case of "." in a digit in charA
+    if "." not in charA:
+        segStates1 = lookupDict[str(charA)] # only set segStates to the value of the key charA, charB (with DP segment off by default)
+    else:
+        # find the dictionary value for key charA which describes the on/off states for the segments of the digits
+        segStates1 = lookupDict[str(charA[:-1])] 
+        
+        # change the last character of that value (which describes the DP segment) to 1
+        segStates1 = segStates1[:-1] + "1" 
+
+    # in the case of "." in a digit in charB
+    if "." not in charB:
+        segStates2 = lookupDict[str(charB)] # only set segStates to the value of the key charA, charB (with DP segment off by default)
+    else:
+        # find the dictionary value for key charB which describes the on/off states for the segments of the digits
+        segStates2 = lookupDict[str(charB[:-1])] 
+        
+        # change the last character of that value (which describes the DP segment) to 1
+        segStates2 = segStates2[:-1] + "1" 
+
+
+    # enable the segments according to the lookup dictionary values
+    # pushedBits = []
+    for bit in segStates2[::-1]+segStates1[::-1]:
+        board.digital_write(SER, int(bit)) # SER (1 or 0)
+        # pushedBits += bit        
+        click_srclk(board)
+        
+    # print(pushedBits)
+
+def cycle_digits(message1, message2, board, refreshRate):
+    """
+    Function name: cycle_digits
+
+    Description: 
+                Contains the logic to achieve the effect of multiple digits 'being on at once'.
+                Cycles through each digit of the display and turns it on if appropriate.
+                Contains calls to function 'enable_segments'.
+
+    Parameters: 
+                message (list): the validated 4-digit message as a list
+                board (object): the Arduino board initialised using pymata
+                duration (float): the amount of time the message should stay on for
+                refreshRate (float): the frequency (in Hz), at which the display's 4 digits will be updated. Defaults to 60Hz.
+
+    Returns: None
+    """ 
+
+    digitNum = 1 # counter for the current digit (1, 2, 3 or 4, from left to right)
+
+    # for each character in the list 'message' 
+    for chA, chB in zip(message1[::-1], message2[::-1]):
+        # reset the counter digitNum to 1 after all four digits has been cycled through once
+        if digitNum >= 5:
+            digitNum = 1
+
+        # disable all segments
+        enable_segments(board, " ", " ")
+
+        # turn off all digits
+        # UNCOMMENT IF SRCLR IS ADDED
+        # board.digital_write(SRCLR, 0)
+        # click_rclk(board)
+        # board.digital_write(SRCLR, 1)
+        for pin in digitPins:
+            board.digital_write(pin, 1)
+
+        # turn on the appropriate segment pins for the given character ch on all digits
+        enable_segments(board, chA, chB)
+
+        click_rclk(board)
+
+        # turn on only the current digit
+        board.digital_write(digitPins[digitNum - 1], 0) # subtract digitPins by 1 to match Python's list indexing syntax
+
+        # all four digits are updated every 1/refreshRate seconds, 
+        # therefore each of the FOUR (4) digits are updated every (1/refreshRate)/4 seconds
+        try:
+            time.sleep((1/refreshRate)/4)
+        except ZeroDivisionError:
+            time.sleep((1/60)/4) # if the refresh rate is 0, the default will be 60hz
+
+        digitNum += 1 # go to the next digit on the display
    
-def display_message(message, board, timeOn, scrolling, refreshRate = 60):
+def display_message(scrollText, staticText, board, timeOn, refreshRate = 60):
     """
     Function name: display_message
 
@@ -289,46 +344,42 @@ def display_message(message, board, timeOn, scrolling, refreshRate = 60):
                 message (string): the 4-digit message as a string which will be displayed
                 board (object): the Arduino board initialised using pymata
                 timeOn (float): the amount of time the message should display for
+                scrolling (bool): whether or not to scroll the message
                 refreshRate (float): the frequency (in Hz) at which the display's 4 digits will be updated. Defaults to 60Hz
 
     Returns: None
     """
 
-    formattedMessage = format_message(message, scrolling)
+    formattedScrollText = format_message(scrollText, True)
+    formattedStaticText = format_message(staticText, False)
 
-    if scrolling:
-        scrollSections = scroll_format(formattedMessage)
-        for section in scrollSections:
-            currentTime = time.time()  # the current time before displaying the current section
-            while time.time() < currentTime + timeOn/len(scrollSections):
-                cycle_digits(section, board, refreshRate)
-    else:
-        currentTime = time.time() # the current time before displaying the message
-        # for the specified duration, execute the code below
-        while time.time() < currentTime + timeOn:
-            cycle_digits(formattedMessage, board, refreshRate) # show message for timeOn seconds
-        
-        cycle_digits("    ", board, refreshRate) # clear the message by turning off all digits
+    scrollSections = scroll_format(formattedScrollText)
+    for section in scrollSections:
+        currentTime = time.time()  # the current time before displaying the current section on scrolling display
+        while time.time() < currentTime + timeOn/len(scrollSections):
+            cycle_digits(section, formattedStaticText, board, refreshRate)        
+
+    cycle_digits("    ", "    ", board, refreshRate) # clear the message by turning off all digits on both displays
 
 
 
 
-# ------------------ BELOW CODE IS FOR DEBUGGING ONLY ------------------ 
-board = pymata4.Pymata4() # define the Arduino board
-# set up pins for digital output
-for pin in allPins:
-    board.set_pin_mode_digital_output(pin)
+# ------------------------------------- BELOW CODE IS FOR DEBUGGING ONLY ------------------------------------- 
+# board = pymata4.Pymata4() # define the Arduino board
+# # configure pins for digital output
+# for pin in allPins:
+#     board.set_pin_mode_digital_output(pin)
 
-while True:
-    try:
-        displayText = input("Please enter the message you would like to display: ") # the message to be displayed
-        onTime = float(input("Time to stay on: ")) # time for the message to be displayed
+# while True:
+#     try:
+#         scrollMessage = input("Please enter the scrolling message you would like to display: ") # the message to be displayed
+#         staticMessage = input("Please enter the static message you would like to display: ") # the message to be displayed
+#         onTime = float(input("Time to stay on: ")) # time for the message to be displayed
 
-        display_message(displayText, board, onTime, True, 120) # call the seven segment display function
-    except ValueError:
-        print("\nPlease ensure that the time to stay on is a float.\n")
-        continue
-    except KeyboardInterrupt: # shutdown the board and quit the program on a keyboard interrupt (Control-C)
-        print("\nQuitting...")
-        board.shutdown()
-        quit()
+#         display_message(scrollMessage, staticMessage, board, onTime, 120) # call the seven segment display function
+#     except ValueError:
+#         print("\nPlease ensure that the time to stay on is a float.\n")
+#     except KeyboardInterrupt: # shutdown the board and quit the program on a keyboard interrupt (Control-C)
+#         print("\nQuitting...")
+#         board.shutdown()
+#         quit()
