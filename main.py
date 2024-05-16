@@ -6,7 +6,8 @@
 # Version '3.0' - Edited By: 'James Armit' (21/04/24) - hardware integration
 # Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
 # Version '4.2' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
-# Version '5.0' - Edited By: 'James Armit' (16/05/2024) - Introduced Milestone 3 
+# Version '5.0' - Edited By: 'James Armit' (16/05/2024) - Introduced Milestone 3
+# Version '5.1' - Edited By: 'Karthik Vaideeswaran' (16/05/24) - Added time-out for maintenance mode, validation for user-modified parameters prior to being updated
 
 #--- IMPORT MODULES ----
 import time
@@ -49,6 +50,7 @@ RGBPin = 11
 buzzerPin = 10
 maxHeight = 15 #Changeable
 vehicleHeight = 0
+activeTime = 30
 
 
 
@@ -72,7 +74,8 @@ systemVariables = {
     "presetPIN": 2005,
     "maxPinAttempts": 3, 
     "lockedTime": 5,
-    "closeDistance": 10
+    "closeDistance": 10,
+    "activeTime": 30
 }
 
 
@@ -293,7 +296,7 @@ def update_system_variables(updatedVariables):
 
     Returs: None
     """
-    global systemVariables, pollCycles, pollInterval, stage1Duration, stage2Duration, stage3Duration, stage4Duration, stage5Duration, stage6Duration, cycleDuration, storageMaxSize
+    global systemVariables, pollCycles, pollInterval, stage1Duration, stage2Duration, stage3Duration, stage4Duration, stage5Duration, stage6Duration, cycleDuration, storageMaxSize, activeTime
     systemVariables = updatedVariables
     # Update all modifiable variables
     pollCycles = systemVariables['pollCycles']
@@ -306,6 +309,7 @@ def update_system_variables(updatedVariables):
     stage6Duration = systemVariables['stage6Duration']
     cycleDuration = systemVariables['cycleDuration']
     storageMaxSize = systemVariables['storageMaxSize']
+    activeTime = systemVariables['activeTime']
 
 def maintenance():
     """
