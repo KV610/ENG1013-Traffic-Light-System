@@ -6,16 +6,23 @@
 # Version '3.0' - Edited By: 'James Armit' (21/04/24) - hardware integration
 # Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
 # Version '4.2' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
-# Version '4.3' - Edited By: 'Karthik Vaideeswaran' (08/05/2024) - Added LDR, Thermistor and 2nd Ultrasonic Sensor Data Collection
-# Version '4.4' - Edited By: 'Karthik Vaideeswaran' (09/05/2024) - Updated Thermisor and LDR data collection to update stageChangeCycles according to temperature and light level, respectively
+# Version '5.0' - Edited By: 'James Armit' (16/05/2024) - Introduced Milestone 3 
 
 #--- IMPORT MODULES ----
 import time
 from pymata4 import pymata4
 import matplotlib.pyplot as plt
+import seven_segment_display as ss 
 import math
 
+#from change_display import display_message
+
 board = pymata4.Pymata4()
+
+allPins = [2, 3, 6, 7, 8, 9, 10]
+for pin in allPins:
+    board.set_pin_mode_digital_output(pin)
+
 
 #   ----------------------- INITIALISE GLOBAL VARIABLES AND VARIABLE DICTIONARY------------------------------
 pedestrians = 0
@@ -23,11 +30,11 @@ pollTime = 0
 pollCycles = 3
 pollInterval = 0.2
 currentStage = 1 
-stageChangeCycles = 2
-stage1Duration = 2
+stageChangeCycles = 10
+stage1Duration = 10
 stage2Duration = 1
 stage3Duration = 1
-stage4Duration = 2
+stage4Duration = 10
 stage5Duration = 1
 stage6Duration = 1
 cycleDuration = 3.00
@@ -36,6 +43,9 @@ sideRoadLights = "Red"
 pedestrianLights = "Red"
 storageMaxSize = 2
 pulseOn = True
+closeDistance = 10
+
+# maintenance mode variables
 failCount = 0
 
 # -- VARIABLE DICTIONARY CONTATINING DEFAULT VALUES -- 
@@ -54,23 +64,24 @@ systemVariables = {
     'storageMaxSize': 2,
     "presetPIN": 2005,
     "maxPinAttempts": 3, 
-    "lockedTime": 5
+    "lockedTime": 5,
+    "closeDistance": 10
 }
+
+vehicleHeight = 3.1415
 
 dataStorage = []
 currentData = {}
 
 pedestrianData = []
 
+ultrasonicData = []
 ldrFinal = []
 tempData = []
-
-ultrasonicDataDistance = []
-ultrasonicDataHeight = []
 ultrasonicPlaceholder = []
 speedData = []
 
-#Steinhart-Hart Equation Coefficients
+# Steinheart - Hart Coefficients
 A = 1.1279/1000
 B = 2.3429/10000
 C = 8.7298/(10**8)
@@ -95,7 +106,7 @@ def seven_seg_display_placeholder(message):
     else:
         print("Message must be a string")
 
-def display_graph(ultrasonic, graph_type):
+def display_graph(ultrasonic):
     """
     Function: display_graph
 
@@ -106,14 +117,14 @@ def display_graph(ultrasonic, graph_type):
     Returns: None 
     """
     global dataStorage
-    xAxisData = []
+    distanceData = []
     timeData = []
 
     firstTime = ultrasonic[0][0][1]
 
     for j in range(len(ultrasonic)):
         for i in ultrasonic[j]:
-            xAxisData.append(i[0])
+            distanceData.append(i[0])
             timeData.append((i[1]-firstTime))
 
     if len(timeData) < 7:
@@ -122,19 +133,11 @@ def display_graph(ultrasonic, graph_type):
        return
     
     try:
-        if graph_type == "D":
-            plt.title("Distance from oncoming traffic vs Time")
-            plt.ylabel("Height (cm)")
-        elif graph_type == "H":
-            plt.title("Height of vehicle vs Time")
-            plt.ylabel("Height (cm)")
-
-
-
-        plt.plot(timeData[-80:-1],xAxisData[-80:-1], marker="o")
+        plt.title("Distance from oncoming traffic vs Time")
+        plt.plot(timeData[-80:-1],distanceData[-80:-1], marker="o")
         plt.xlabel("Time (seconds)")
         plt.ylabel("Distance (cm)")
-        plt.grid(True)
+
         plt.show() 
 
         plt.savefig("Ultrasonic Data.png")
@@ -158,6 +161,23 @@ def services():
     """
 
     global dataStorage 
+    serPin = 11
+    srclk = 12
+    rclk = 13
+    board.set_pin_mode_digital_output(serPin)
+    board.set_pin_mode_digital_output(srclk)
+    board.set_pin_mode_digital_output(rclk)
+    board.set_pin_mode_digital_output(10)
+    board.set_pin_mode_digital_output(9)
+    ledList = [1,0,0,0,0,0,0,0]
+    for i in ledList:
+        board.digital_write(serPin,i)
+        board.digital_write(srclk,0)
+        board.digital_write(srclk,1)
+    board.digital_write(rclk,0)
+    board.digital_write(rclk,1)
+    board.digital_write(10,1)
+    board.digital_write(9,1)
     while True:
         seven_seg_display_placeholder("srvc")
 
@@ -173,6 +193,19 @@ def services():
 
             if mode == 'end':
                 print("Shutting down...")
+                serPin = 11
+                srclk = 12
+                rclk = 13
+                board.set_pin_mode_digital_output(serPin)
+                board.set_pin_mode_digital_output(srclk)
+                board.set_pin_mode_digital_output(rclk)
+                ledList = [0,0,0,0,0,0,0,0]
+                for i in ledList:
+                    board.digital_write(serPin,i)
+                    board.digital_write(srclk,0)
+                    board.digital_write(srclk,1)
+                board.digital_write(rclk,0)
+                board.digital_write(rclk,1)
                 board.shutdown()
                 exit(0)
             else:
@@ -192,27 +225,11 @@ def services():
                     maintenance()
                 elif mode == 3:
                     print("\nEntering data observation mode...\n")
-                    inputDataDistance = []
-                    inputDataHeight = []
+                    inputData = []
                     try:
                         for i in range(len(dataStorage[0])):
-                            inputDataDistance.append(dataStorage[i]['data']['ultrasonicDistance'])
-                            inputDataHeight.append(dataStorage[i]['data']['ultrasonicHeight'])
-
-                        print(inputDataHeight)
-                        
-                        while True:
-                            graph = input("Would you like to display Distance or Height? (D/H): ")
-
-                            if graph == "D":
-                                display_graph(inputDataDistance, "D").savefig("Ultrasonic_Data_Distance.png")
-                                break
-                            elif graph == "H":
-                                display_graph(inputDataHeight, "H").savefig("Ultrasonic_Data_Distance.png")
-                                break
-                            else:
-                                continue
-
+                            inputData.append(dataStorage[i]['data']['ultrasonic'])
+                        display_graph(inputData).savefig("Ultrasonic_Data.png")
                         print("Graph displayed")
                     except IndexError:
                         print("\nNo data available to graph, please run normal operations for at least 20 seconds\n")
@@ -264,8 +281,6 @@ def maintenance():
     seven_seg_display_placeholder("adjt")
 
     global failCount, systemVariables, currentData,systemVariables,pollCycles,pollInterval,stage1Duration,stage4Duration
-
-    stage_6() # call stage 6
 
     while True:
         try:
@@ -324,6 +339,7 @@ def maintenance():
                     if failCount >= systemVariables['maxPinAttempts']:
                         print(f"\nToo many incorrect attempts. Try again in {systemVariables['lockedTime']} seconds.")
                         seven_seg_display_placeholder("Locd")
+                        ss.display_message("Locked", "    ", board, 4, True)
                         time.sleep(systemVariables['lockedTime'])
                         failCount = 0
                     else:
@@ -345,7 +361,6 @@ def input_data(cycles,intervalLength):
     Parameters:
         cycles (int): the number of measurements to take
         intervalLength (float): the time delay between each measurement in seconds
-        maxHeight (int): the maximum height of a passing vechile before over-height led is triggered
     Returns: 
         ouput (dictionary): contains the arrays output by each sensor to be interpreted in the polling loop
     
@@ -354,38 +369,53 @@ def input_data(cycles,intervalLength):
         global pedestrians,currentStage
         global pollTime
         global pulseOn
-        global ldrData, thermData
-        triggerPinDistance = 5
-        echoPinDistance = 4
-        triggerPinHeight = 2
-        echoPinHeight = 1
-        pedestrians = 0
+        triggerPin = 5
+        echoPin = 4
         for i in range(int(round(cycles*4))):
             # --------  FLASHING ----------
+            # This software version should/could be replaced with hardware logic 
+            # Since flashing lights will have to be done for the maintenence lights anyways
             if currentStage == 5:
-                board.set_pin_mode_digital_output(7)
+                serPin = 11
+                srclk = 12
+                rclk = 13
+                board.set_pin_mode_digital_output(serPin)
+                board.set_pin_mode_digital_output(srclk)
+                board.set_pin_mode_digital_output(rclk)
+                pulseONList = [0,1,0,1,0,1,0,0]
+                pulseOFFList = [0,0,0,1,0,1,0,0]
                 if pulseOn == True:
-                    board.digital_write(7,1)
+                    for i in pulseONList:
+                        board.digital_write(serPin,i)
+                        board.digital_write(srclk,0)
+                        board.digital_write(srclk,1)
+                    board.digital_write(rclk,0)
+                    board.digital_write(rclk,1)
                     pulseOn = False
                 elif pulseOn == False:
-                    board.digital_write(7,0)
+                    for i in pulseOFFList:
+                        board.digital_write(serPin,i)
+                        board.digital_write(srclk,0)
+                        board.digital_write(srclk,1)
+                    board.digital_write(rclk,0)
+                    board.digital_write(rclk,1)
                     pulseOn = True 
             # -------- PEDESTRIANS -------
-            board.set_pin_mode_digital_input(3)
-            pedButton = 3
-            button = board.digital_read(pedButton)
-            pedestrianData.append(button[0])
-            #print(pedestrianData)
-            if len(pedestrianData) >= 2:
-                if button[0] > pedestrianData[-1]:
-                    print("Button pressed!")
-                elif button[0] < pedestrianData[1]:
-                    print("Button released!")
-            # --------  ULTRASONIC-DISTANCE  -------------
+            #board.set_pin_mode_digital_input(5)
+            #pedButton = 5
+            #button = board.digital_read(pedButton)
+            #pedestrianData.append(button[0])
+            ##print(pedestrian_data)
+            #if len(pedestrianData) >= 2:
+            #    if button[0] > pedestrianData[-1]:
+            #        print("Button pressed!")
+            #    elif button[0] < pedestrianData[1]:
+            #        print("Button released!")
+            # --------  ULTRASONIC  -------------
             speedData = []
             sumSpeed = 0
-            board.set_pin_mode_sonar(triggerPinDistance,echoPinDistance,timeout=250000)
-            resultDistance = board.sonar_read(triggerPinDistance)     
+            board.set_pin_mode_sonar(triggerPin,echoPin,timeout=250000)
+            result = board.sonar_read(triggerPin)     
             #if i >= 3:  
             #    if ultrasonicData[-1][0] == 60 and result[0] < 60:
             #        print("Object detected in range")
@@ -395,26 +425,10 @@ def input_data(cycles,intervalLength):
             #print(f"The nearest object is {result[0]} cm away at {result[1]}")
             # Find the change in distance and time over one inteval
             # Note that ultrasonicData[-1] = ultrasonicData[-2] for some reason
-
-            # --------- ULTRASONIC-HEIGHT ------------
-            board.set_pin_mode_sonar(triggerPinHeight,echoPinHeight,timeout = 250000)
-            resultHeight = board.sonar_read(triggerPinHeight)
-            resultHeight[0] = 28 - resultHeight[0]
-
-
-            # if resultHeight[0] > maxHeight:
-            #     #Do stuff
-
-
-            # if resultHeight[0] > 0:
-            #     #Display resultHeight on 7-SEG
-            # else:
-            #     pass
-            # --------- SPEED ------------
-            if i >= 2:
+            if i >= 2 and len(ultrasonicData) > 2:
                 try:
-                    deltaD = abs(resultDistance[0] - ultrasonicDataDistance[-1][0])
-                    deltaT = resultDistance[1] - ultrasonicDataDistance[-1][1]
+                    deltaD = (result[0] - ultrasonicData[-1][0])
+                    deltaT = result[1] - ultrasonicData[-1][1]
                     speed = deltaD / deltaT
                     if speed > 0.01:
                         #print(f"The current speed is {speed:.3f} cm/s")
@@ -424,11 +438,12 @@ def input_data(cycles,intervalLength):
                         pass
                 except ZeroDivisionError:
                     pass
-            if resultDistance[1] != 0:
-                ultrasonicDataDistance.append(resultDistance)
-                ultrasonicDataHeight.append(resultHeight)
-            time.sleep(intervalLength)
+            if result[1] != 0:
+                ultrasonicData.append(result)
+            ss.display_message("    ", str(vehicleHeight), board, intervalLength, False)
+            # time.sleep(intervalLength)
             pollTime += intervalLength
+
         for i in speedData:
             sumSpeed += i
         averageSpeed = sumSpeed / cycles * 4
@@ -437,9 +452,8 @@ def input_data(cycles,intervalLength):
             if pedestrianData[i] == 1:
                 if pedestrianData[i] > pedestrianData[i-1]:
                     pedestrians += 1
-        #print(f"{pedestrians} have pushed the button during the stage") - For debugging
-
-            #-------LDR---------
+        #print(f"{pedestrians} have pushed the button during the stage") - For debugging 
+        #-------LDR---------
             ldrData = []
 
             #set pins
@@ -487,12 +501,9 @@ def input_data(cycles,intervalLength):
                     tempData.append(temp)
                 else:
                     continue
-
-        #---------OUTPUT DICTIONARY--------- 
         output = {
             'pedestrian': pedestrianData,
-            'ultrasonicDistance': ultrasonicDataDistance,
-            'ultrasonicHeight': ultrasonicDataHeight,
+            'ultrasonic': ultrasonicData,
             'LDR': ldrFinal,
             'Temperature': tempData
         }
@@ -500,6 +511,7 @@ def input_data(cycles,intervalLength):
     except KeyboardInterrupt:
         services()
         return
+
 
 # TEST INPUTS / PLACEHOLDER FUNCTION
 #def input_data_placeholder(cycles,intervalLength):
@@ -549,7 +561,7 @@ def stage_1():
     Parameters: None 
     Returns: None
     """
-    global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles, tempData
+    global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles
     currentStage = 1
 
     mainRoadLights = "Green"
@@ -569,6 +581,8 @@ def stage_1():
             stageChangeCycles = stage1Duration + 5
         else:
             stageChangeCycles = stage1Duration
+
+    stageChangeCycles = stage1Duration
 
     seven_seg_display_placeholder("stg1")
 
@@ -642,6 +656,8 @@ def stage_4():
             else:
                 stageChangeCycles = stage4Duration
 
+    stageChangeCycles = stage4Duration
+
     seven_seg_display_placeholder("stg4")
 
 def stage_5():
@@ -708,7 +724,7 @@ def set_stage(current):
         stage_1()
     print(f"\n-----------------\n    STAGE {currentStage}   \n-----------------")
 
-def update_LED_placeholder(ledDict):
+def update_LED():
     """
     Function: update_LED_placeholder
 
@@ -720,36 +736,31 @@ def update_LED_placeholder(ledDict):
     Returns: None
     """
     global currentStage
-    print("---- LED LIGHT OUTPUT --- ")
-    ledMapping = {
-        'main': {
-            "Green": 13,
-            "Yellow": 12,
-            "Red": 11
-        },
-        'side': {
-            "Green": 10,
-            "Yellow": 9,
-            "Red": 8
-        },
-        'pedestrian': {
-            "Green": 7,
-            "Red": 6
-        }
-    }
-    for keys in ledDict:
-        print(f"{keys} is set to {ledDict[keys]} LED active")
-    for i in range(6,14):
-        board.set_pin_mode_digital_output(i)
-        board.digital_write(i,0)
-    board.digital_write(ledMapping['main'][mainRoadLights],1)
-    board.digital_write(ledMapping["side"][sideRoadLights],1)
-    board.digital_write(ledMapping["pedestrian"][pedestrianLights],1)
+    serPin = 11
+    srclk = 12
+    rclk = 13
+    board.set_pin_mode_digital_output(serPin)
+    board.set_pin_mode_digital_output(srclk)
+    board.set_pin_mode_digital_output(rclk)
+    ledDict = {
+        1:[1,0,1,0,0,0,0,1],
+        2:[1,0,1,0,0,0,1,0],
+        3:[1,0,1,0,0,1,0,0],
+        4:[0,1,0,0,1,1,0,0],
+        5:[0,1,0,1,0,1,0,0],
+        6:[1,0,1,0,0,1,0,0]
+    }      
+    for i in ledDict[currentStage]:
+        board.digital_write(serPin,i)
+        board.digital_write(srclk,0)
+        board.digital_write(srclk,1)
+    board.digital_write(rclk,0)
+    board.digital_write(rclk,1)
     
 
 
 def main():
-    global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles,pollTime,dataStorage
+    global currentStage,mainRoadLights,sideRoadLights,pedestrianLights,pedestrians,stageChangeCycles,pollTime,dataStorage,closeDistance
     """
     Function name: main 
 
@@ -776,12 +787,20 @@ def main():
             dataStorage.append(currentData)
             if len(dataStorage) > storageMaxSize:
                 dataStorage.remove(dataStorage[0])
+            # Check distance to vehicles at stage 
+            lastPosition = currentData['data']['ultrasonic'][-1][0]
+            firstPosition = currentData['data']['ultrasonic'][1][0]
+            if currentStage == 1 and lastPosition == firstPosition:
+                print(f"\n----- ALERT -----\nVehicle has not moved from {lastPosition} during green light")
+            # Extend yellow light if vehicles are close
+            #if currentStage == 2 and lastPosition <= closeDistance:
+            #    stageChangeCycles += 1 
                                     
             if stageChangeCycles <= 0: # Check in case the duration is edited such that the value is now negative
                 set_stage(currentStage)
             if pedestrians > 1:
                 if currentStage == 1:
-                    if currentData['data']['ultrasonicDistance'][-1][0] == 60 :
+                    if currentData['data']['ultrasonic'][-1][0] == 60 :
                         if stageChangeCycles > 2:
                             stageChangeCycles = 2
                 else:
@@ -789,14 +808,9 @@ def main():
             else:
                 pass
             # print(f"Cycles to stage change: {stageChangeCycles}") - Only for debugging
-            print(f"\nThe last object was detected at {currentData['data']['ultrasonicDistance'][-1][0]:.2f} cm")
-            ledDict = {
-                'Main Road Light': mainRoadLights,
-                'Side Road Light': sideRoadLights,
-                'Pedestrian Light': pedestrianLights
-            }
+            print(f"\nThe last object was detected at {currentData['data']['ultrasonic'][-1][0]:.2f} cm")
 
-            update_LED_placeholder(ledDict)
+            update_LED()
 
             delayTime = cycleDuration - pollTime
             print(f"The sensor poll took {pollTime:.2f} seconds")
