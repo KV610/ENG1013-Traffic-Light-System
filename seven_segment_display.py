@@ -9,13 +9,13 @@ from pymata4 import pymata4
 import time
 
 # Define pins
-digitPins = [4, 5, 6, 7]
+digitPins = [2, 3, 6, 7]
 SER = 8
 RCLK = 9
 SRCLK = 10
 SRCLR = 2
 
-allPins = [4, 5, 6, 7, 8, 9, 10]
+allPins = [2, 3, 6, 7, 8, 9, 10]
 
 # Define lookup dictionary for all alphanumeric characters (for which segments to turn on)
 lookupDict = {
@@ -233,7 +233,7 @@ def scroll_format(wholeString):
     
     return scrollSections 
 
-def enable_segments(board, charA, charB):
+def enable_segments(board, trafficBits, charA, charB):
     """
     Function name: enable_segments
 
@@ -271,14 +271,14 @@ def enable_segments(board, charA, charB):
 
     # enable the segments according to the lookup dictionary values
     # pushedBits = []
-    for bit in segStates2[::-1]+segStates1[::-1]:
+    for bit in trafficBits[::-1]+segStates2[::-1]+segStates1[::-1]:
         board.digital_write(SER, int(bit)) # SER (1 or 0)
         # pushedBits += bit        
         click_srclk(board)
         
     # print(pushedBits)
 
-def cycle_digits(message1, message2, board, refreshRate):
+def cycle_digits(message1, message2, trafficBits, board, refreshRate):
     """
     Function name: cycle_digits
 
@@ -299,13 +299,13 @@ def cycle_digits(message1, message2, board, refreshRate):
     digitNum = 1 # counter for the current digit (1, 2, 3 or 4, from left to right)
 
     # for each character in the list 'message' 
-    for chA, chB in zip(message1[::-1], message2[::-1]):
+    for chA, chB, traffic in zip(message1[::-1], message2[::-1], trafficBits[::-1]):
         # reset the counter digitNum to 1 after all four digits has been cycled through once
         if digitNum >= 5:
             digitNum = 1
 
         # disable all segments
-        enable_segments(board, " ", " ")
+        enable_segments(board, trafficBits, " ", " ")
 
         # turn off all digits
         # UNCOMMENT IF SRCLR IS ADDED
@@ -316,7 +316,7 @@ def cycle_digits(message1, message2, board, refreshRate):
             board.digital_write(pin, 1)
 
         # turn on the appropriate segment pins for the given character ch on all digits
-        enable_segments(board, chA, chB)
+        enable_segments(board, trafficBits, chA, chB)
 
         click_rclk(board)
 
@@ -332,7 +332,7 @@ def cycle_digits(message1, message2, board, refreshRate):
 
         digitNum += 1 # go to the next digit on the display
    
-def display_message(scrollText, staticText, board, timeOn, refreshRate = 60):
+def display_message(scrollText, staticText, trafficBits, board, timeOn, scrolling, refreshRate = 60):
     """
     Function name: display_message
 
@@ -353,13 +353,18 @@ def display_message(scrollText, staticText, board, timeOn, refreshRate = 60):
     formattedScrollText = format_message(scrollText, True)
     formattedStaticText = format_message(staticText, False)
 
-    scrollSections = scroll_format(formattedScrollText)
-    for section in scrollSections:
+    if scrolling:
+        scrollSections = scroll_format(formattedScrollText)
+        for section in scrollSections:
+            currentTime = time.time()  # the current time before displaying the current section on scrolling display
+            while time.time() < currentTime + timeOn/len(scrollSections):
+                cycle_digits(section, formattedStaticText, trafficBits, board, refreshRate)     
+    else:
         currentTime = time.time()  # the current time before displaying the current section on scrolling display
-        while time.time() < currentTime + timeOn/len(scrollSections):
-            cycle_digits(section, formattedStaticText, board, refreshRate)        
-
-    cycle_digits("    ", "    ", board, refreshRate) # clear the message by turning off all digits on both displays
+        while time.time() < currentTime + timeOn:
+            cycle_digits("    ", formattedStaticText, board, refreshRate)     
+    
+    cycle_digits("    ", "    ", trafficBits, board, refreshRate) # clear the message by turning off all digits on both displays
 
 
 
@@ -376,10 +381,12 @@ def display_message(scrollText, staticText, board, timeOn, refreshRate = 60):
 #         staticMessage = input("Please enter the static message you would like to display: ") # the message to be displayed
 #         onTime = float(input("Time to stay on: ")) # time for the message to be displayed
 
-#         display_message(scrollMessage, staticMessage, board, onTime, 120) # call the seven segment display function
+#         display_message(scrollMessage, staticMessage, board, onTime, True, 120) # call the seven segment display function
 #     except ValueError:
 #         print("\nPlease ensure that the time to stay on is a float.\n")
 #     except KeyboardInterrupt: # shutdown the board and quit the program on a keyboard interrupt (Control-C)
 #         print("\nQuitting...")
 #         board.shutdown()
 #         quit()
+
+
