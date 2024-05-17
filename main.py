@@ -51,7 +51,7 @@ maxHeight = 15 #Changeable
 vehicleHeight = 0
 
 failCount = 0
-
+activeTime = 30
 
 # -- VARIABLE DICTIONARY CONTATINING DEFAULT VALUES -- 
 # This dictionary is the one which can be updated in the services subsection
@@ -69,7 +69,8 @@ systemVariables = {
     'storageMaxSize': 2,
     "presetPIN": 2005,
     "maxPinAttempts": 3, 
-    "lockedTime": 5
+    "lockedTime": 5,
+    "activeTime": 30
 }
 
 
@@ -292,7 +293,7 @@ def update_system_variables(updatedVariables):
 
     Returs: None
     """
-    global systemVariables, pollCycles, pollInterval, stage1Duration, stage2Duration, stage3Duration, stage4Duration, stage5Duration, stage6Duration, cycleDuration, storageMaxSize
+    global systemVariables, pollCycles, pollInterval, stage1Duration, stage2Duration, stage3Duration, stage4Duration, stage5Duration, stage6Duration, cycleDuration, storageMaxSize,activeTime
     systemVariables = updatedVariables
     # Update all modifiable variables
     pollCycles = systemVariables['pollCycles']
@@ -305,6 +306,7 @@ def update_system_variables(updatedVariables):
     stage6Duration = systemVariables['stage6Duration']
     cycleDuration = systemVariables['cycleDuration']
     storageMaxSize = systemVariables['storageMaxSize']
+    activeTime = systemVariables['activeTime']
 
 def maintenance():
     """
@@ -318,7 +320,7 @@ def maintenance():
     Returns: None
     """
 
-    global failCount, systemVariables, currentData,systemVariables,pollCycles,pollInterval,stage1Duration,stage4Duration
+    global failCount, systemVariables, currentData,systemVariables,pollCycles,pollInterval,stage1Duration,stage4Duration, activeTime
 
     while True:
         try:
@@ -345,32 +347,65 @@ def maintenance():
                         for variable in enumerate(systemVariables):
                             print(f"[{variable[0]+1}] {variable[1]}: {systemVariables[variable[1]]}")
                         print("---------------------------\n")
+                        startTime = time.time()
+                        while True:
+                            print(f"You have {activeTime} seconds to change system variables in maintenance mode.\n")
+                            chosenParam = input("Please select the parameter you would like to modify.\n*Type 'back' to return to the system menu.\n")
 
-                        chosenParam = input("Please select the parameter you would like to modify.\n*Type 'back' to return to the system menu.\n")
-
-                        if chosenParam == 'back':
-                            services()
-                            return
-                        else:
-                            try:
-                                chosenParam = int(chosenParam)
-                            except ValueError:
-                                print("\nPlease select one of the shown parameters.\n")
-                                time.sleep(1)
-                                continue
-
-                            if chosenParam in range(1, len(systemVariables) + 1):
-                                chosenKey = list(systemVariables.keys())[chosenParam - 1]
-                                chosenValue = float(input(f"Please enter the value you would like to set '{chosenKey}' to: "))
-                                systemVariables[chosenKey] = chosenValue
-                                update_system_variables(systemVariables)
-
-                                print(f"\nUpdated parameter [{chosenParam}] {chosenKey} to {chosenValue}")
-                                time.sleep(1)
+                            if chosenParam == 'back':
+                                services()
+                                return
                             else:
-                                print("\nPlease select one of the shown parameters.\n")
-                                time.sleep(1)
-                                continue
+                                try:
+                                    chosenParam = int(chosenParam)
+                                except ValueError:
+                                    print("\nPlease select one of the shown parameters.\n")
+                                    time.sleep(1)
+                                    if endTime - startTime < activeTime:
+                                        activeTime -= endTime - startTime
+                                        continue
+                                    elif activeTime <= 0:
+                                        print('You have been in maintenance mode for 30s or longer.\nExiting maintenance mode...')
+                                        services()
+                                        return
+                                    continue
+
+                                if chosenParam in range(1, len(systemVariables) + 1):
+                                    try:
+                                        chosenKey = list(systemVariables.keys())[chosenParam - 1]
+                                        chosenValue = float(input(f"Please enter the value you would like to set '{chosenKey}' to: "))
+                                        system_variables_validation(chosenKey, chosenValue)
+                                        # systemVariables[chosenKey] = chosenValue
+                                        # update_system_variables(systemVariables)
+                                        print(f"\nUpdated parameter [{chosenParam}] {chosenKey} to {chosenValue}")
+                                    except ValueError:
+                                        print("Please enter a float value!")
+                                    response = str(input("Would you like to continue (Y/N)?\n"))
+                                    endTime = time.time()
+                                    if response == "Y":
+                                        if endTime - startTime < activeTime:
+                                            activeTime -= endTime - startTime
+                                            continue
+                                        elif activeTime <= 0:
+                                            print("You have been in maintenance mode for 30s or longer.\nExiting maintenance mode...")
+                                            services()
+                                            return
+                                    else:
+                                        print("Exiting maintenance mode...")
+                                        services()
+                                        return
+                                else:
+                                    print("\nPlease select one of the shown parameters.\n")
+                                    time.sleep(1)
+                                    if endTime - startTime < activeTime:
+                                        if endTime - startTime < activeTime:
+                                            activeTime -= endTime - startTime
+                                            continue
+                                        elif activeTime <= 0:
+                                            print("You have been in maintenance mode for 30s or longer.\nExiting maintenance mode...")
+                                            services()
+                                            return
+                                    continue
 
                 else:
                     failCount += 1
@@ -387,7 +422,34 @@ def maintenance():
             print()
             continue
 
-
+def system_variables_validation(var,val):
+    """
+    Function name: system_variables_validation
+    Description: Validates values provided by user before modifying corresponding parameters.
+    Parameters:
+            var (string): The parameter requested to be modified by the user
+            val (float): The value provided by the user, to which the requested parameter is being modified (pending validation).
+    Returns:
+            None
+    """
+    global systemVariables
+    for i in range(len(systemVariables)):
+        if var == systemVariables[i]:
+            if type(var) == float and var > 0:
+                if var == "pollCycles" or var == "pollInterval":
+                    if pollCycles*pollInterval <= 5:
+                        systemVariables[var] = val
+                        update_system_variables(systemVariables)
+                    else:
+                        print("Invalid value entered for pollCycles and/or pollInterval, please try again.")
+                        continue
+                else:
+                    systemVariables[var] = val
+                    update_system_variables(systemVariables)
+                    continue
+        else:
+            print("Chosen variable not in list of modifiable parameters, please try again.")
+            continue
 
 def ultrasonic_max_height_check(heightResult, maximumHeight):
     """
