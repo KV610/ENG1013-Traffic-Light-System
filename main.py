@@ -2,7 +2,7 @@
 # Purpose: Contains the traffic light system logic 
 # Version '0.0' - Edited By: 'James Armit' (09/04/24) - file created with polling loop and control subsystem
 # Version '1.0' - Edited By: 'Karthik Vaideeswaran' (09/04/24) - created function led_status for m2p1
-# Version '2.0' - Edited By: 'Binuda Kalugalage' (10/04/2024) - added maintenance_mode, fixed display_graph, added dummy button (ped) + ultrasonic data for m2p1
+# Version '2.0' - Edited By: 'Binuda Kalugalage' (10/04/2024) - added maintenance_mode, fixed display_graph, added dummy button (ped) + ultrasonicDistance data for m2p1
 # Version '3.0' - Edited By: 'James Armit' (21/04/24) - hardware integration
 # Version '4.0' - Edited By: 'Binuda Kalugalage' (21/04/2024) - improved maintenance and services functions' logic; improved system parameter handling and console readability
 # Version '4.2' - Edited By: 'James Armit' (21/04/2024) - Fixed up necessary deliverables for MVP
@@ -42,14 +42,23 @@ sideRoadLights = "Red"
 pedestrianLights = "Red"
 storageMaxSize = 2
 pulseOn = True
+closeDistance = 10
+lastHeightBreach = None
+
+RGBPin = 11
+buzzerPin = 10
+maxHeight = 15 #Changeable
+vehicleHeight = 0
+
 failCount = 0
+
 
 # -- VARIABLE DICTIONARY CONTATINING DEFAULT VALUES -- 
 # This dictionary is the one which can be updated in the services subsection
 # Only editable variables should be in this dictionary 
 systemVariables = {
-    'pollCycles' : 12,
-    'pollInterval' : 0.05,
+    'pollCycles' : 1,
+    'pollInterval' : 0.2,
     'stage1Duration': 2,
     'stage2Duration': 1,
     'stage3Duration': 1,
@@ -63,14 +72,17 @@ systemVariables = {
     "lockedTime": 5
 }
 
-lastHeight = 3.1415
+
+
 
 dataStorage = []
 currentData = {}
 
 pedestrianData = []
 
-ultrasonicData = []
+ultrasonicDataDistance = []
+ultrasonicDataHeight = []
+
 ldrFinal = []
 tempData = []
 ultrasonicPlaceholder = []
@@ -83,7 +95,7 @@ C = 8.7298/(10**8)
 
 
 
-def display_graph(ultrasonic):
+def display_graph(inputData, graph_type):
     """
     Function: display_graph
 
@@ -94,15 +106,31 @@ def display_graph(ultrasonic):
     Returns: None 
     """
     global dataStorage
-    distanceData = []
+    yAxisData = []
     timeData = []
+    
+    print(inputData)
+    if graph_type != "T":
+        firstTime = inputData[0][0][1]
+        for j in range(len(inputData)):
+            for i in inputData[j]:
+                yAxisData.append(i[0])
+                timeData.append((i[1]-firstTime))
 
-    firstTime = ultrasonic[0][0][1]
+    else:
+        firstTime = inputData[0][0]
+        print(inputData[0])
+        for i in inputData[0]:
+            # if i not in yAxisData:
+            #     yAxisData.append(i)
+            if inputData[0].index(i) not in timeData and i not in yAxisData:
+                timeData.append(inputData[0].index(i))
+                yAxisData.append(i)
 
-    for j in range(len(ultrasonic)):
-        for i in ultrasonic[j]:
-            distanceData.append(i[0])
-            timeData.append((i[1]-firstTime))
+        # for j in range(len(inputData)):
+        #     for i in inputData[j]:
+        #         yAxisData.append(i)
+        #         timeData.append((i[1]-firstTime))
 
     if len(timeData) < 7:
        print("\nInsufficient data. Please wait 20 seconds in the polling loop before trying again.\n")
@@ -110,14 +138,29 @@ def display_graph(ultrasonic):
        return
     
     try:
-        plt.title("Distance from oncoming traffic vs Time")
-        plt.plot(timeData[-80:-1],distanceData[-80:-1], marker="o")
-        plt.xlabel("Time (seconds)")
-        plt.ylabel("Distance (cm)")
+        if graph_type == "D":
+            plt.title("Distance from oncoming traffic vs Time")
+            plt.ylabel("Distance (cm)")
+            saveTitle = "Ultrasonic_Distance_Data.png"
 
+        elif graph_type == "H":
+            plt.title("Height of vehicle vs Time")
+            plt.ylabel("Distance (cm)")
+            saveTitle = "Ultrasonic_Height_Data.png"
+        
+        elif graph_type == "T":
+            plt.title("Temperature vs Time")
+            plt.ylabel("Temperature (°C)")
+            saveTitle = "Temperature_Data.png"
+
+
+
+        plt.plot(timeData[-80:-1],yAxisData[-80:-1], marker="o")
+        plt.xlabel("Time (seconds)")
+        plt.grid(True)
         plt.show() 
 
-        plt.savefig("Ultrasonic Data.png")
+        plt.savefig(f"{saveTitle}.png")
 
         return plt
     except IndexError:
@@ -154,6 +197,10 @@ def services():
     board.digital_write(rclk,1)
     board.digital_pin_write(14,1)
     while True:
+
+        ss.display_message("Services", 'static', "01001001", board, 1, False)
+        board.set_pin_mode_digital_output(14)
+        board.digital_pin_write(14,1)
 
         print("\n---------------------------")
         print("SYSTEM MENU                ")
@@ -199,12 +246,30 @@ def services():
                     print("\nEntering maintenance mode...")
                     maintenance()
                 elif mode == 3:
+                    inputDataDistance = []
+                    inputDataHeight = []
+                    inputDataTemp = []
                     print("\nEntering data observation mode...\n")
                     inputData = []
                     try:
                         for i in range(len(dataStorage[0])):
-                            inputData.append(dataStorage[i]['data']['ultrasonic'])
-                        display_graph(inputData).savefig("Ultrasonic_Data.png")
+                            inputDataDistance.append(dataStorage[i]['data']['ultrasonicDistance'])
+                            inputDataHeight.append(dataStorage[i]['data']['ultrasonicHeight'])
+                            inputDataTemp.append(dataStorage[i]['data']['Temperature']),
+                        
+                        while True:
+                            graph = input("Would you like to display Distance, Height or Temperature? (D/H/T): ")
+                                
+                            if graph == "D":
+                                display_graph(inputDataDistance, "D")
+                                break
+                            elif graph == "H":
+                                display_graph(inputDataHeight, "H")
+                                break
+                            elif graph == "T":
+                                display_graph(inputDataTemp, "T")
+                                break
+
                         print("Graph displayed")
                     except IndexError:
                         print("\nNo data available to graph, please run normal operations for at least 20 seconds\n")
@@ -311,7 +376,7 @@ def maintenance():
                     failCount += 1
                     if failCount >= systemVariables['maxPinAttempts']:
                         print(f"\nToo many incorrect attempts. Try again in {systemVariables['lockedTime']} seconds.")
-                        ss.display_message("Locked", '3.252', board, systemVariables['lockedTime'], True)
+                        ss.display_message("Locked", '3.252', "00000000", board, systemVariables['lockedTime'], True)
                         # time.sleep(systemVariables['lockedTime'])
                         failCount = 0
                     else:
@@ -321,6 +386,37 @@ def maintenance():
         except KeyboardInterrupt:
             print()
             continue
+
+
+
+def ultrasonic_max_height_check(heightResult, maximumHeight):
+    """
+    Function name: ultrasonic_max_height_check
+
+    Description: This function checks the recent height measurement from the 2nd ultrasonicDistance to trigger led and buzzer
+
+
+    Parameters:
+        heightResult(int): most recent height measurement
+        maximumHeight(int): the maximum height before led and buzzer is triggered
+    
+    Returns:
+        None
+    """
+    global lastHeightBreach
+    print(heightResult)
+    if heightResult > maximumHeight:
+        print("Vehicle too high")
+        board.digital_write(RGBPin,1)
+        board.digital_write(buzzerPin,1)
+        lastHeightBreach = time.time()
+    if lastHeightBreach is not None and time.time() - lastHeightBreach >= 6:
+        board.digital_write(RGBPin,0)
+    if lastHeightBreach is not None and time.time() - lastHeightBreach >= 2:
+        board.digital_write(buzzerPin,0)
+
+
+
 
 
 # ACTUAL HARDWARE INTEGRATED FUNCTION
@@ -341,8 +437,10 @@ def input_data(cycles,intervalLength):
         global pedestrians,currentStage
         global pollTime
         global pulseOn
-        triggerPin = 5
-        echoPin = 4
+        triggerPinDistance = 5
+        echoPinDistance = 4
+        triggerPinHeight = 13
+        echoPinHeight = 12
         for i in range(int(round(cycles*4))):
             # --------  FLASHING ----------
             # This software version should/could be replaced with hardware logic 
@@ -354,23 +452,13 @@ def input_data(cycles,intervalLength):
                 board.set_pin_mode_digital_output(serPin)
                 board.set_pin_mode_digital_output(srclk)
                 board.set_pin_mode_digital_output(rclk)
-                pulseONList = [0,1,0,1,0,1,0,0]
-                pulseOFFList = [0,0,0,1,0,1,0,0]
+                pulseONList = "00101010"
+                pulseOFFList = "00101000"
                 if pulseOn == True:
-                    for i in pulseONList:
-                        board.digital_write(serPin,i)
-                        board.digital_write(srclk,0)
-                        board.digital_write(srclk,1)
-                    board.digital_write(rclk,0)
-                    board.digital_write(rclk,1)
+                    ss.display_message("stg5", str(lastHeightBreach), pulseONList, board, 1, False)
                     pulseOn = False
                 elif pulseOn == False:
-                    for i in pulseOFFList:
-                        board.digital_write(serPin,i)
-                        board.digital_write(srclk,0)
-                        board.digital_write(srclk,1)
-                    board.digital_write(rclk,0)
-                    board.digital_write(rclk,1)
+                    ss.display_message("stg5", str(lastHeightBreach), pulseOFFList, board, 1, False)
                     pulseOn = True 
             # -------- PEDESTRIANS -------
             #-------LDR---------
@@ -398,11 +486,11 @@ def input_data(cycles,intervalLength):
             thermFinal = []
             resistanceData = []
             for num in range(len(thermData)):
-                thermFinal.append(thermData[num][0])
+                thermFinal.append([thermData[num][0],time.time()])
 
             #Calculae Resistance
             for n in range(len(thermFinal)):
-                thermRes = 10000*(thermFinal[n]/(1023-thermFinal[n]))
+                thermRes = 10000*(thermFinal[n][0]/(1023-thermFinal[n][0]))
                 resistanceData.append(thermRes)
 
             #Find Temperature
@@ -413,24 +501,40 @@ def input_data(cycles,intervalLength):
                     tempData.append(temp)
                 else:
                     continue
-            # --------  ULTRASONIC  -------------
+            # --------  ULTRASONIC DISTANCE  -------------
             speedData = []
             sumSpeed = 0
-            board.set_pin_mode_sonar(triggerPin,echoPin,timeout=250000)
-            result = board.sonar_read(triggerPin)     
+            board.set_pin_mode_sonar(triggerPinDistance,echoPinDistance,timeout=250000)
+            resultDistance = board.sonar_read(triggerPinDistance)     
             #if i >= 3:  
-            #    if ultrasonicData[-1][0] == 60 and result[0] < 60:
+            #    if ultrasonicDataDistance[-1][0] == 60 and resultDistance[0] < 60:
             #        print("Object detected in range")
-            #    if ultrasonicData[-1][0] < 60 and result[0] == 60:
+            #    if ultrasonicDataDistance[-1][0] < 60 and resultDistance[0] == 60:
             #        print("Object has left range")
 
-            #print(f"The nearest object is {result[0]} cm away at {result[1]}")
+            #print(f"The nearest object is {resultDistance[0]} cm away at {resultDistance[1]}")
             # Find the change in distance and time over one inteval
-            # Note that ultrasonicData[-1] = ultrasonicData[-2] for some reason
-            if i >= 2 and len(ultrasonicData) > 2:
+            # Note that ultrasonicDataDistance[-1] = ultrasonicDataDistance[-2] for some reason
+
+             # --------  ULTRASONIC-HEIGHT ----------------
+            board.set_pin_mode_sonar(triggerPinHeight,echoPinHeight, timeout=250000)
+            resultHeight = board.sonar_read(triggerPinHeight)
+            print(resultHeight)
+            if resultHeight[0] != 0:
+                resultHeight[0] = 28 - resultHeight[0]
+                if resultHeight[0] < 0:
+                    resultHeight[0] = 0
+                
+                if resultHeight[0] > 0:
+                    vehicleHeight = resultHeight[0]
+                
+                ultrasonic_max_height_check(resultHeight[0], maxHeight)
+
+            
+            if i >= 2 and len(ultrasonicDataDistance) > 2:
                 try:
-                    deltaD = (result[0] - ultrasonicData[-1][0])
-                    deltaT = result[1] - ultrasonicData[-1][1]
+                    deltaD = (resultDistance[0] - ultrasonicDataDistance[-1][0])
+                    deltaT = resultDistance[1] - ultrasonicDataDistance[-1][1]
                     speed = deltaD / deltaT
                     if speed > 0.01:
                         #print(f"The current speed is {speed:.3f} cm/s")
@@ -440,9 +544,11 @@ def input_data(cycles,intervalLength):
                         pass
                 except ZeroDivisionError:
                     pass
-            if result[1] != 0:
-                ultrasonicData.append(result)   
-            # ss.display_message(str(lastHeight), "    ", board, intervalLength, False)
+            if resultDistance[1] != 0:
+                ultrasonicDataDistance.append(resultDistance)   
+            if resultHeight[1] != 0:
+                ultrasonicDataHeight.append(resultHeight)   
+            # ss.display_message(str(lastHeightBreach), "    ", board, intervalLength, False)
             time.sleep(intervalLength)
             pollTime += intervalLength
 
@@ -458,10 +564,13 @@ def input_data(cycles,intervalLength):
         
         output = {
             'pedestrian': pedestrianData,
-            'ultrasonic': ultrasonicData,
+            'ultrasonicDistance': ultrasonicDataDistance,
+            'ultrasonicHeight': ultrasonicDataHeight,
             'LDR': ldrFinal,
             'Temperature': tempData
         }
+
+        #print(tempData)
         # print(output)
         return output
     except KeyboardInterrupt:
@@ -474,8 +583,8 @@ def input_data(cycles,intervalLength):
     """
     Function name: input_data_placeholder
 
-    Description: Provides randomised input data from the pedestrian button and ultrasonic sensor
-    This data is random but has limits such that it will return a result that is within the boundries 
+    Description: Provides randomised input data from the pedestrian button and ultrasonicDistance sensor
+    This data is random but has limits such that it will return a resultDistance that is within the boundries 
     of the actual hardware integrated function 
 
     Parameters: 
@@ -500,7 +609,7 @@ def input_data(cycles,intervalLength):
    #                 pedestrians += 1
    # print(f"\n{pedestrians} have pushed the pedestrian button since stage 1")
    # output = {
-   #     'ultrasonic' : ultrasonicPlaceholder,
+   #     'ultrasonicDistance' : ultrasonicPlaceholder,
    #     'pedestrian' : pedestrianPlaceholder
    # }
    # time.sleep((cycles*4)*intervalLength)
@@ -747,8 +856,8 @@ def main():
             if len(dataStorage) > storageMaxSize:
                 dataStorage.remove(dataStorage[0])
             # Check distance to vehicles at stage 
-            lastPosition = currentData['data']['ultrasonic'][-1][0]
-            firstPosition = currentData['data']['ultrasonic'][1][0]
+            lastPosition = currentData['data']['ultrasonicDistance'][-1][0]
+            firstPosition = currentData['data']['ultrasonicDistance'][1][0]
             if currentStage == 1 and lastPosition == firstPosition:
                 print(f"\n----- ALERT -----\nVehicle has not moved from {lastPosition} during green light")
             # Extend yellow light if vehicles are close
@@ -759,7 +868,7 @@ def main():
                 set_stage(currentStage)
             if pedestrians > 1:
                 if currentStage == 1:
-                    if currentData['data']['ultrasonic'][-1][0] == 60 :
+                    if currentData['data']['ultrasonicDistance'][-1][0] == 60 :
                         if stageChangeCycles > 2:
                             stageChangeCycles = 2
                 else:
@@ -767,9 +876,9 @@ def main():
             else:
                 pass
             # print(f"Cycles to stage change: {stageChangeCycles}") - Only for debugging
-            print(f"\nThe last object was detected at {currentData['data']['ultrasonic'][-1][0]:.2f} cm")
+            print(f"\nThe last object was detected at {currentData['data']['ultrasonicDistance'][-1][0]:.2f} cm")
 
-            ss.display_message(f"Stage {currentStage}", str(lastHeight), update_LED(), board, delayTime, True)
+            ss.display_message(f"Stage {currentStage}", str(lastHeightBreach), update_LED(), board, delayTime, True)
 
             print(f"The sensor poll took {pollTime:.2f} seconds")
             stageChangeCycles -= 1 
