@@ -727,19 +727,19 @@ def stage_1():
 
     pedestrians = 0
 
+    stageChangeCycles = stage1Duration
+
     for l in range(len(tempData)):
         if tempData[l] > 35.0:
-            stageChangeCycles = stage1Duration + 2
+            stageChangeCycles +=2
         else:
-            stageChangeCycles = stage1Duration
+            pass
 
     for p in range(len(ldrFinal)):
         if ldrFinal[p] > 1000:
-            stageChangeCycles = stage1Duration + 5
+            stageChangeCycles += 5
         else:
-            stageChangeCycles = stage1Duration
-
-    stageChangeCycles = stage1Duration
+            pass
 
     seven_seg_display_placeholder("stg1")
 
@@ -801,19 +801,19 @@ def stage_4():
     sideRoadLights = "Green"
     pedestrianLights = "Green"
 
+    stageChangeCycles = stage4Duration
+
     for l in range(len(tempData)):
         if tempData[l] > 35.0:
-            stageChangeCycles = stage4Duration + 2
+            stageChangeCycles += 3
         else:
-            stageChangeCycles = stage4Duration
+            pass
     
         for q in range(len(tempData)):
             if ldrFinal[q] > 1000:
-                stageChangeCycles = stage4Duration + 3
+                stageChangeCycles += 2
             else:
-                stageChangeCycles = stage4Duration
-
-    stageChangeCycles = stage4Duration
+                pass
 
     seven_seg_display_placeholder("stg4")
 
