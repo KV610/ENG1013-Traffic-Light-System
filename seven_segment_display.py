@@ -325,10 +325,10 @@ def cycle_digits(message1, message2, trafficBits, board, refreshRate):
 
         # all four digits are updated every 1/refreshRate seconds, 
         # therefore each of the FOUR (4) digits are updated every (1/refreshRate)/4 seconds
-        try:
-            time.sleep((1/refreshRate)/4)
-        except ZeroDivisionError:
-            time.sleep((1/60)/4) # if the refresh rate is 0, the default will be 60hz
+        # try:
+        #     time.sleep((1/refreshRate)/4)
+        # except ZeroDivisionError:
+        #     time.sleep((1/60)/4) # if the refresh rate is 0, the default will be 60hz
 
         digitNum += 1 # go to the next digit on the display
    
@@ -362,7 +362,7 @@ def display_message(scrollText, staticText, trafficBits, board, timeOn, scrollin
     else:
         currentTime = time.time()  # the current time before displaying the current section on scrolling display
         while time.time() < currentTime + timeOn:
-            cycle_digits("    ", formattedStaticText, board, refreshRate)     
+            cycle_digits("    ", formattedStaticText, trafficBits, board, refreshRate)     
     
     cycle_digits("    ", "    ", trafficBits, board, refreshRate) # clear the message by turning off all digits on both displays
 
@@ -388,5 +388,4 @@ def display_message(scrollText, staticText, trafficBits, board, timeOn, scrollin
 #         print("\nQuitting...")
 #         board.shutdown()
 #         quit()
-
 
